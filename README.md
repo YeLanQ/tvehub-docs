@@ -52,4 +52,4 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 
 ## 许可
 
-本仓库（文档内容）基于 [MIT](LICENSE) 开源发布，Copyright (c) 2026 YeLanQ。宿主项目 tve（three-visual-editor）本体基于 Apache License 2.0 发布。
+本仓库（文档内容）基于 MIT 开源发布，Copyright (c) 2026 YeLanQ；许可证原文见仓库根目录的 `LICENSE` 文件。宿主项目 tve（three-visual-editor）本体基于 Apache License 2.0 发布。
