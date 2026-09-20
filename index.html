@@ -93,12 +93,53 @@
       ::-webkit-scrollbar-thumb { background: #565656; border-radius: 5px; }
       ::-webkit-scrollbar-thumb:hover { background: #6a6a6a; }
       .docs-content.loading { color: var(--text-dim); }
+
+      /* ---------- 搜索（search.js 接管交互） ---------- */
+      .docs-search { position: relative; margin-left: auto; }
+      .docs-search .search-ico {
+        position: absolute; left: 8px; top: 4px;
+        color: var(--text-dim); pointer-events: none;
+      }
+      .docs-search input {
+        width: 240px; padding: 4px 10px 4px 26px;
+        background: var(--bg-panel-2); border: 1px solid var(--border); border-radius: 6px;
+        color: var(--text); font: inherit; outline: none;
+      }
+      .docs-search input:focus { border-color: var(--ok); }
+      .sr-list {
+        display: none; position: absolute; top: calc(100% + 6px); right: 0;
+        width: 480px; max-height: 480px; overflow-y: auto;
+        background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        z-index: 50;
+      }
+      .sr-list.open { display: block; }
+      .sr-item { padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
+      .sr-item:last-of-type { border-bottom: 0; }
+      .sr-item:hover, .sr-item.active { background: var(--bg-hover); }
+      .sr-crumb { font-size: 11px; color: var(--text-dim); }
+      .sr-snippet {
+        font-size: 12px; color: var(--text-dim); margin-top: 2px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .sr-snippet mark { background: rgba(95, 176, 95, 0.25); color: #9fd89f; padding: 0 1px; }
+      .sr-empty { padding: 10px 12px; color: var(--text-dim); }
+      .sr-hint {
+        padding: 6px 12px; font-size: 11px; color: var(--text-dim);
+        border-top: 1px solid var(--border); background: var(--bg-panel-2);
+      }
+      .md .search-hit { background: rgba(95, 176, 95, 0.14); outline: 1px solid var(--ok); border-radius: 3px; }
     </style>
   </head>
   <body>
     <header class="docs-head">
       <span class="title">tve 文档</span>
       <span class="crumb" id="crumb"></span>
+      <div class="docs-search">
+        <span class="search-ico">⌕</span>
+        <input id="searchBox" type="text" placeholder="搜索文档与 API…（Ctrl+K）" autocomplete="off" spellcheck="false" />
+        <div class="sr-list" id="srList"></div>
+      </div>
     </header>
     <div class="docs-body">
       <nav class="docs-nav" id="nav"></nav>
@@ -213,6 +254,8 @@
             mdEl.innerHTML = marked.parse(text, { gfm: true, breaks: false });
             rewriteLinks();
             document.getElementById("content").scrollTop = 0;
+            // 搜索跳转：渲染完成后由 search.js 滚动定位到目标章节
+            if (window.__docsConsumeScroll) window.__docsConsumeScroll();
           })
           .catch(function (err) {
             mdEl.textContent = "文档加载失败：" + err.message + "（" + path + ".md）";
@@ -228,5 +271,6 @@
       window.addEventListener("hashchange", route);
       route();
     </script>
+    <script src="./search.js"></script>
   </body>
 </html>
