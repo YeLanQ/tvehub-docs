@@ -38,6 +38,8 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 
 脚本以 `import { ... } from "tve"` 使用全部能力，类型契约见编辑器内 `src/framework/scripting/tve.d.ts`（Monaco 智能提示直接可用）。SDK 不暴露任何底层渲染接口，全部为引擎自有类型。
 
+**全量 API 参考**见 [API 参考](sdk/api.md)——由 `tve.d.ts` 自动生成（`pnpm gen:api-docs`），请勿手改；下表专题文档负责讲解与示例。
+
 | 文档 | 内容 |
 | --- | --- |
 | [SDK 总览](sdk/overview.md) | 快速上手、生命周期详解、每帧调度顺序、执行顺序与错误隔离、约定速查 |
@@ -49,6 +51,7 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 | [数学库 math](sdk/math.md) | 向量运算纯函数集、角度工具、常见配方速查 |
 | [补间动画 tween](sdk/tween.md) | `tween` 工厂、链式配置、序列/并行组、31 个缓动、全局控制 |
 | [通用设施](sdk/utils.md) | `Delegate` 委托、`Pool` 对象池、`DataCenter` 数据中心 |
+| [API 参考](sdk/api.md) | 全量 API 自动生成（类型 + JSDoc，随 `tve.d.ts` 同步） |
 
 ## 许可
 
