@@ -49,3 +49,7 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 | [数学库 math](sdk/math.md) | 向量运算纯函数集、角度工具、常见配方速查 |
 | [补间动画 tween](sdk/tween.md) | `tween` 工厂、链式配置、序列/并行组、31 个缓动、全局控制 |
 | [通用设施](sdk/utils.md) | `Delegate` 委托、`Pool` 对象池、`DataCenter` 数据中心 |
+
+## 许可
+
+本仓库（文档内容）基于 [MIT](LICENSE) 开源发布，Copyright (c) 2026 YeLanQ。宿主项目 tve（three-visual-editor）本体基于 Apache License 2.0 发布。
