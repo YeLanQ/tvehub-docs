@@ -3,6 +3,7 @@
 # tve SDK API 参考
 
 <!-- 生成物说明：本页是类型契约的全量参考；入门与专题讲解见 SDK 总览等手写文档。 -->
+<!-- 声明级示例来自 scripts/api-docs/examples/（ts tve 标记块随 pnpm docs:test 验证）。 -->
 
 > tve —— 引擎脚本 SDK 类型契约（模块说明符 "tve"）
 > 用户脚本以 `import { Component, property, nodeType, engine } from "tve"`
@@ -171,7 +172,9 @@ CameraNode / SkyboxNode / ParticleSystemNode / FsmRunnerNode / BtRunnerNode，
 检查器按类型过滤列出可选的场景节点，选择结果在运行期解析为该节点的 Entity
 （未选择为 null）：
 
-```ts
+```ts tve
+import { Component, property, MeshNode } from "tve";
+
 export default class Game extends Component {
   @property({ type: MeshNode, label: "目标网格" })
   target: MeshNode | null = null;   // 运行期指向被引用的网格节点
@@ -187,7 +190,9 @@ RigidBody / Collider / Light / AudioSource），或直接以组件类作装饰�
 （`@property(AnimationClip)`），即声明"引用一个内置组件"。该字段不出现在
 检查器中；运行期宿主在本实体上 get-or-create 对应组件并把门面绑定到字段：
 
-```ts
+```ts tve
+import { Component, property, AnimationClip } from "tve";
+
 export default class Punch extends Component {
   @property(AnimationClip)
   anim!: AnimationClip;            // 运行期 = 实体上的关键帧动画剪辑组件
@@ -195,6 +200,86 @@ export default class Punch extends Component {
   onStart() {
     this.anim.speed = 2;
     this.anim.play();
+  }
+}
+```
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+三种属性写法（推荐字段 + `@property` 装饰器）：
+
+```ts tve
+import { Component, property, MeshNode, AnimationClip, engine } from "tve";
+
+export default class Demo extends Component {
+  // 1. 基本类型：类型由字段初值推断（number/boolean/string）
+  @property({ label: "速度", min: 0, max: 100, step: 1, tooltip: "度/秒" })
+  speed = 90;
+  @property({ label: "无敌" })
+  invincible = false;
+
+  // 2. 特殊值类型：颜色（#rrggbb 字符串）与向量需显式传 type
+  @property({ type: "color", label: "受击闪色" })
+  hitColor = "#ff3020";
+  @property({ type: "vec3", label: "出生点" })
+  spawnPoint = { x: 0, y: 1, z: 0 };
+
+  // 3a. 场景节点引用：type 传节点类型类，检查器按类型过滤可选节点
+  @property({ type: MeshNode, label: "目标网格" })
+  target: MeshNode | null = null;
+
+  // 3b. 内置组件引用：装饰器实参直接传组件类，运行期 get-or-create 绑定门面
+  @property(AnimationClip)
+  anim!: AnimationClip;
+
+  onUpdate(delta: number) {
+    if (this.target) this.target.rotate(0, this.speed * delta, 0);
+    engine.log("速度", this.speed, "无敌", this.invincible);
+  }
+}
+```
+
+### property()
+
+```ts
+property(component: ComponentClass): PropertyDecorator
+```
+
+组件引用速记重载：装饰器实参直接传内置组件门面类（等价
+`@property({ type: AnimationClip })`）——声明组件引用字段，不出现在检查器，
+运行期宿主 get-or-create 绑定门面。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+三种属性写法（推荐字段 + `@property` 装饰器）：
+
+```ts tve
+import { Component, property, MeshNode, AnimationClip, engine } from "tve";
+
+export default class Demo extends Component {
+  // 1. 基本类型：类型由字段初值推断（number/boolean/string）
+  @property({ label: "速度", min: 0, max: 100, step: 1, tooltip: "度/秒" })
+  speed = 90;
+  @property({ label: "无敌" })
+  invincible = false;
+
+  // 2. 特殊值类型：颜色（#rrggbb 字符串）与向量需显式传 type
+  @property({ type: "color", label: "受击闪色" })
+  hitColor = "#ff3020";
+  @property({ type: "vec3", label: "出生点" })
+  spawnPoint = { x: 0, y: 1, z: 0 };
+
+  // 3a. 场景节点引用：type 传节点类型类，检查器按类型过滤可选节点
+  @property({ type: MeshNode, label: "目标网格" })
+  target: MeshNode | null = null;
+
+  // 3b. 内置组件引用：装饰器实参直接传组件类，运行期 get-or-create 绑定门面
+  @property(AnimationClip)
+  anim!: AnimationClip;
+
+  onUpdate(delta: number) {
+    if (this.target) this.target.rotate(0, this.speed * delta, 0);
+    engine.log("速度", this.speed, "无敌", this.invincible);
   }
 }
 ```
@@ -212,13 +297,48 @@ nodeType(options?: {
 出现在层级面板「添加节点 > 脚本节点」；创建时生成 kind 对应的基础节点并自动
 挂上本脚本组件（以脚本定义节点行为）。
 
-```ts
+```ts tve
+import { Component, nodeType } from "tve";
+
 @nodeType({ kind: "meshNode", label: "敌人" })
 export default class Enemy extends Component {
   // ...
 }
 ```
 kind 缺省 node（空组）；label 缺省取类名。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, nodeType, property } from "tve";
+
+// 类装饰器：声明脚本类同时成为一种可创建节点类型（层级面板「添加节点 > 脚本节点」）
+// kind = 生成的基础节点类型；label = 菜单显示名（缺省取类名）
+@nodeType({ kind: "meshNode", label: "敌人" })
+export default class Enemy extends Component {
+  @property({ label: "生命值", min: 1 })
+  hp = 100;
+
+  @property({ label: "移动速度", min: 0 })
+  speed = 2;
+}
+```
+
+kind 缺省为 `"node"`（空组基础节点）：
+
+```ts tve
+import { Component, nodeType, property } from "tve";
+
+@nodeType({ label: "旋转体" })
+export default class Spin extends Component {
+  @property({ min: 0 })
+  speed = 90;
+
+  onUpdate(delta: number) {
+    this.entity.rotate(0, this.speed * delta, 0);
+  }
+}
+```
 
 ## 组件 / 实体
 
@@ -248,6 +368,60 @@ type GraphInputValue = Entity | Entity[] | number | boolean | string | Vec3 | nu
 全部模拟（脚本/动画/物理/粒子）更新后、渲染前驱动 onLateUpdate；
 停机时逐实例 onDisable → onDestroy。
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, engine, Entity, MeshNode, property, Vec3 } from "tve";
+
+// 全部钩子可选、按需实现；onEnable 全体先于 onStart 全体
+export default class Lifecycle extends Component {
+  @property({ type: MeshNode, label: "目标" })
+  target: MeshNode | null = null;
+
+  onEnable() {
+    // 实例创建后：可安全引用其他实体与组件
+    engine.log("enabled on", this.entity.name);
+  }
+
+  onStart() {
+    // 全部实例创建后、首个 onUpdate 前，一次性初始化
+  }
+
+  onGraphInput(value: MeshNode[] | number | Vec3 | null) {
+    // 场景图接入口收到新值（值变化边沿触发）；同值可随时读 this.graphInput
+  }
+
+  onFixedUpdate(fixedDelta: number) {
+    // 固定步长 1/60s（与物理同频；掉帧补偿 0..4 次）——施力/速度写这里
+  }
+
+  onUpdate(delta: number) {
+    // 每帧（渲染帧率）
+  }
+
+  onLateUpdate(delta: number) {
+    // 全部模拟（脚本/动画/物理/粒子）后、相机回填与渲染前——相机跟随写这里
+  }
+
+  onCollisionEnter(other: Entity) {
+    // 碰撞开始（须挂碰撞体 + 项目启用物理；传感器同样触发）
+    engine.log("hit", other.name);
+  }
+
+  onCollisionExit(other: Entity) {
+    // 接触断开
+  }
+
+  onDisable() {
+    // 停机：释放定时器/事件订阅（先于 onDestroy）
+  }
+
+  onDestroy() {
+    // 实例销毁
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `onEnable()` | `void` | 生命周期：实例创建后调用（全部实例的 onEnable 先于全部 onStart）；此时可安全引用其他实体与组件。 |
@@ -265,8 +439,8 @@ type GraphInputValue = Entity | Entity[] | number | boolean | string | Vec3 | nu
 
 脚本组件基类（装饰器声明式写法，推荐）：
 
-```ts
-import { Component, property, engine } from "tve";
+```ts tve
+import { Component, nodeType, property, engine } from "tve";
 
 @nodeType({ kind: "node", label: "旋转体" })
 export default class Spin extends Component {
@@ -299,15 +473,56 @@ strict 模式下无初值字段需要其中一种写法）。
 import 依赖），宿主同样 get-or-create：实体已挂载该脚本组件则绑定实例，
 没有则动态创建并立即进入生命周期（按需自动挂载依赖组件）：
 
-```ts
-import type CameraFollow from "./CameraFollow";   // type-only：编译期擦除
+```ts tve
+import { Component, math } from "tve";
+
+// 跨脚本文件时用 import type 只引类型（编译期擦除）；下例同文件演示
+class CameraFollow extends Component {
+  offset = math.v3(0, 0, 0);
+}
 
 export default class Enemy extends Component {
   follow!: CameraFollow;   // 自动绑定/创建本实体上的 CameraFollow 组件
-  hp!: HPBar;
 
   onStart() {
     this.follow.offset = math.v3(0, 3, 5);
+  }
+}
+```
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, engine, MeshNode, AnimationClip } from "tve";
+
+export default class Full extends Component {
+  // 装饰器字段：初值即默认值与类型推断来源；检查器配置的覆盖值运行期生效
+  @property({ label: "速度", min: 0 })
+  speed = 90;
+
+  // 组件字段（裸声明须带确定类型标注）：运行期宿主 get-or-create 并绑定门面
+  anim!: AnimationClip;
+
+  @property({ type: MeshNode, label: "目标" })
+  target: MeshNode | null = null;
+
+  // 只读视图：装饰器字段当前值 + 检查器覆盖值（不要写入）
+  // this.props.speed 与 this.speed 同源
+
+  onStart() {
+    // 一次性初始化（全部实例的 onEnable 先于全部 onStart）
+    this.anim.speed = 2;
+    this.anim.play();
+    engine.log("挂载于", this.entity.name);
+  }
+
+  onUpdate(delta: number) {
+    // 每帧逻辑；this.speed 类型为 number
+    if (this.target) this.entity.rotate(0, this.speed * delta, 0);
+  }
+
+  onDestroy() {
+    // 释放定时器/事件订阅等外部资源
   }
 }
 ```
@@ -379,6 +594,95 @@ export default class Enemy extends Component {
 
 场景实体（节点在脚本运行期的句柄；变换与编辑器同一套语义，旋转为度制欧拉角）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, math, MeshNode, Entity } from "tve";
+
+export default class EntityDemo extends Component {
+  @property({ type: MeshNode, label: "目标" })
+  target: MeshNode | null = null;
+
+  onStart() {
+    const e = this.entity;
+    // 标识（只读）：id 与场景文件一致；name 可写即时生效
+    e.id;     // 节点 id（string）
+    e.kind;   // 类型键："node"/"meshNode"/"pointLightNode"…
+    e.name = "玩家";
+
+    // 变换（读取返回快照副本；写入接受部分字段）
+    e.position = { y: 1 };              // 只改 y
+    const p = e.position;               // 快照：改 p 不影响实体
+    p.x += 100;
+    e.position.x;                       // 仍是写入时的 x
+    e.rotation = { x: 0, y: 45, z: 0 }; // 度制欧拉角 XYZ
+    e.scale = { x: 2 };
+
+    // 世界位置（只读快照）
+    e.worldPosition;
+
+    // 增量变换
+    e.translate(0, 0, -1);   // 沿本地轴平移
+    e.rotate(0, 90, 0);      // 本地旋转叠加（度）
+    e.lookAt({ x: 0, y: 0, z: 0 }); // 朝向世界目标（前向 = -Z）
+
+    // 层级
+    e.parent;   // 父实体（根节点 null）
+    e.children; // 子实体列表（快照）
+    const child = e.find("炮塔");        // 子树内按名/路径查找（"父/子/孙"）
+    void child;
+
+    // 可见性 / 渲染层
+    e.visible = true;
+    e.layer = 0; // 0~31
+
+    void p;
+  }
+
+  onUpdate() {
+    if (!this.target) return;
+    // 组件访问：内置门面类 / 类型键字符串 / 脚本类名
+    const rigid = this.entity.getComponent("rigidBody");
+    void rigid;
+    const other = this.target as Entity;
+    void other;
+    // math 配合实体做方向计算
+    const dir = math.normalize(math.sub(this.target.position, this.entity.position));
+    void dir;
+  }
+}
+```
+
+`addComponent` 动态挂组件（预览运行态生效，不回写场景文件）：
+
+```ts tve
+import { Component, Light, AudioSource, engine } from "tve";
+
+export default class AddComp extends Component {
+  onStart() {
+    // 追加灯光（多实例；settings 缺省项回默认）
+    const light = this.entity.addComponent(Light, {
+      kind: "point",
+      color: 0xffaa33,
+      intensity: 2,
+      distance: 10,
+    });
+    light!.intensity = 3; // 返回门面，写入即时生效
+
+    // 追加音源并播放
+    const audio = this.entity.addComponent(AudioSource, { source: "assets/hit.ogg", volume: 0.8 });
+    audio!.play();
+
+    // 挂脚本组件（按类名/源路径）
+    const hp = this.entity.addComponent("HPBar", { hp: 100 });
+    engine.log("挂上了", !!hp);
+
+    // RigidBody/Collider 仅启动期按场景数据构建，运行时创建返回 null
+    void this.entity.addComponent("rigidBody"); // null：物理组件不可运行时创建
+  }
+}
+```
+
 #### `constructor()`
 
 @internal 由运行时构造
@@ -415,21 +719,21 @@ export default class Enemy extends Component {
 
 #### `get position(): Vec3`
 
-本地位置（读取返回快照副本；写入接受部分字段）
+本地位置（读取返回快照副本；写入接受部分字段——缺省分量保持不变）
 
-#### `set position(value: Vec3)`
+#### `set position(value: Partial<Vec3>)`
 
 #### `get rotation(): Vec3`
 
 本地旋转（度制欧拉角 XYZ；读取返回快照副本；写入接受部分字段）
 
-#### `set rotation(value: Vec3)`
+#### `set rotation(value: Partial<Vec3>)`
 
 #### `get scale(): Vec3`
 
 本地缩放（读取返回快照副本；写入接受部分字段）
 
-#### `set scale(value: Vec3)`
+#### `set scale(value: Partial<Vec3>)`
 
 #### `get worldPosition(): Vec3`
 
@@ -525,9 +829,75 @@ export default class Enemy extends Component {
 
 通用节点（Transform/空组；可引用任意场景节点）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, Transform, MeshNode, LightNode, CameraNode, SkyboxNode, FogNode, engine } from "tve";
+
+export default class NodeRefs extends Component {
+  // 通用节点（Transform = 空组基类，可引用任意场景节点）
+  @property({ type: Transform, label: "出生点" })
+  spawn: Transform | null = null;
+
+  // 网格节点（基元/模型网格）
+  @property({ type: MeshNode, label: "目标网格" })
+  target: MeshNode | null = null;
+
+  // 灯光 / 相机 / 天空盒 / 雾节点（场景节点句柄）
+  @property({ type: LightNode, label: "光源" })
+  lamp: LightNode | null = null;
+  @property({ type: CameraNode, label: "相机" })
+  cam: CameraNode | null = null;
+  @property({ type: SkyboxNode, label: "天空盒" })
+  sky: SkyboxNode | null = null;
+  @property({ type: FogNode, label: "雾" })
+  fog: FogNode | null = null;
+
+  onStart() {
+    // 节点句柄 = Entity 子类：全部通用能力（变换/层级/查找/组件）可用
+    if (this.spawn) this.entity.position = this.spawn.position;
+    // instanceof 收窄（engine.scene.find 返回宽类型 Entity）
+    const found = engine.scene.find("主相机");
+    if (found instanceof CameraNode) found.lookAt({ x: 0, y: 0, z: 0 });
+  }
+}
+```
+
 ### class MeshNode extends Entity
 
 网格节点（编辑器 meshNode：基元网格或模型网格）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, MeshNode, math, tween } from "tve";
+
+export default class MeshDemo extends Component {
+  // 引用场景里的网格节点（基元/模型网格）；检查器按类型过滤候选
+  @property({ type: MeshNode, label: "门" })
+  door: MeshNode | null = null;
+
+  @property({ type: MeshNode, label: "移动目标" })
+  goal: MeshNode | null = null;
+
+  @property({ label: "开门时长（秒）", min: 0.1 })
+  duration = 1;
+
+  onStart() {
+    if (!this.door) return;
+    // 网格节点 = Entity 子类：变换/层级/组件全量可用
+    tween.position(this.door, { y: 3 }, this.duration).easing("quadInOut");
+  }
+
+  onUpdate(delta: number) {
+    if (!this.goal) return;
+    // 与通用实体完全一致的语义（度制欧拉角、快照读写）
+    this.entity.rotation = { y: this.entity.rotation.y + 30 * delta };
+    const dir = math.normalize(math.sub(this.goal.position, this.entity.position));
+    void dir;
+  }
+}
+```
 
 ### class LightNode extends Entity
 
@@ -535,17 +905,82 @@ export default class Enemy extends Component {
 
 这是场景**节点**句柄（extends Entity），不是组件——不能用 `getComponent(LightNode)`。
 灯光属性（intensity/color/kind/...）通过组件门面 `Light` 访问：
-```ts
-const light = this.entity.getComponent(Light);      // ✅ 组件门面
-const light = this.entity.getComponent("light");    // ✅ 字符串键
-// this.entity.getComponent(LightNode)              // ❌ LightNode 是节点句柄，非组件
+```ts tve
+import { Component, Light } from "tve";
+
+export default class Torch extends Component {
+  onStart() {
+    const light = this.entity.getComponent(Light);   // ✅ 组件门面
+    // const light2 = this.entity.getComponent("light"); // ✅ 字符串键
+    // this.entity.getComponent(LightNode)          // ❌ LightNode 是节点句柄，非组件
+    if (light) light.intensity = 2;
+  }
+}
 ```
 引用灯光节点本身（变换/层级）用 `@property({ type: LightNode })` 声明字段，
 或 `engine.scene.find("name")` 后以 `instanceof LightNode` 收窄。
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, LightNode, Light } from "tve";
+
+export default class LightNodeDemo extends Component {
+  // 引用灯光【节点】（变换/层级/可见性走 Entity 能力）
+  @property({ type: LightNode, label: "吊灯节点" })
+  lampNode: LightNode | null = null;
+
+  onUpdate() {
+    if (!this.lampNode) return;
+    // 节点级操作：位置/旋转/可见
+    this.lampNode.visible = true;
+    // 灯光【属性】（intensity/color/kind…）经组件门面 Light 访问——
+    // LightNode 是节点句柄不是组件，不能传给 getComponent
+    const light = this.lampNode.getComponent(Light);
+    if (light) light.intensity = 2 + Math.sin(Date.now() / 300);
+  }
+}
+```
+
 ### class CameraNode extends Entity
 
 相机节点（编辑器 cameraNode）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, CameraNode, math } from "tve";
+
+export default class CameraPick extends Component {
+  @property({ type: CameraNode, label: "相机" })
+  cam: CameraNode | null = null;
+
+  onStart() {
+    // 相机跟随（晚更新阶段覆盖本帧一切位姿写入 → onLateUpdate）
+  }
+
+  onLateUpdate(delta: number) {
+    if (!this.cam) return;
+    const p = this.cam.position;
+    this.cam.position = math.lerp(p, this.entity.position, 1 - Math.pow(0.9, delta * 60));
+    this.cam.lookAt(this.entity.position);
+  }
+
+  onUpdate() {
+    if (!this.cam) return;
+    // 屏幕坐标 → 世界射线（拾取/视线检测；坐标与 engine.input.pointer 同一空间）
+    const ray = this.cam.screenToRay(200, 150);
+    if (ray) {
+      // ray.origin = 相机世界位置；ray.direction = 归一化世界方向
+      void ray.origin;
+      void ray.direction;
+      // 配合物理射线：engine.physics.castRay({ origin: ray.origin, direction: ray.direction })
+    }
+    // 相机未就绪/坐标越界 → null
+    this.cam.screenToRay(-5, -5); // null：越界
+  }
+}
+```
 
 #### `screenToRay(screenX: number, screenY: number): { origin: Vec3; direction: Vec3 } | null`
 
@@ -558,9 +993,52 @@ screenX/screenY 为画布内 CSS 像素（左上角原点；与 engine.input 指
 
 天空盒节点（编辑器 skyboxNode）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, SkyboxNode, FogNode } from "tve";
+
+export default class Weather extends Component {
+  // 天空盒节点引用（环境级；场景配置在检查器，脚本可运行态微调）
+  @property({ type: SkyboxNode, label: "天空盒" })
+  sky: SkyboxNode | null = null;
+
+  // 雾节点引用（场景环境级：第一个启用且可见的雾节点生效）
+  @property({ type: FogNode, label: "雾" })
+  fog: FogNode | null = null;
+
+  onStart() {
+    // 运行态开关（不回写场景文件）
+    if (this.fog) this.fog.visible = false;
+    if (this.sky) this.sky.visible = true;
+  }
+}
+```
+
 ### class FogNode extends Entity
 
 雾节点（编辑器 fogNode；场景环境级，第一个启用且可见的雾节点生效）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, FogNode, tween } from "tve";
+
+export default class FogFade extends Component {
+  // 雾节点（场景环境级：第一个启用且可见的雾节点生效）
+  @property({ type: FogNode, label: "雾节点" })
+  fog: FogNode | null = null;
+
+  onStart() {
+    // 剧情切入：雾淡出后隐藏（运行态写入不回写场景文件）
+    if (!this.fog) return;
+    this.fog.visible = true;
+    tween.from({ o: 1 }, { o: 0 }, 2).onComplete(() => {
+      this.fog!.visible = false;
+    });
+  }
+}
+```
 
 ### ParticleShape
 
@@ -614,7 +1092,9 @@ type ParticleShape = "cone" | "sphere" | "hemisphere" | "box";
 粒子系统节点（编辑器 particleSystemNode）：通用节点能力 + 运行时播放控制 +
 发射参数读写（运行态生效，不回写场景文件）。
 
-```ts
+```ts tve
+import { Component, property, ParticleSystemNode } from "tve";
+
 export default class Explode extends Component {
   @property({ type: ParticleSystemNode, label: "爆炸特效" })
   fx: ParticleSystemNode | null = null;
@@ -624,6 +1104,49 @@ export default class Explode extends Component {
     this.fx.startColor = 0xffcc33;
     this.fx.emissionRate = 200;
     this.fx.restart();
+  }
+}
+```
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, ParticleSystemNode, ParticleSettings } from "tve";
+
+export default class Explode extends Component {
+  @property({ type: ParticleSystemNode, label: "爆炸特效" })
+  fx: ParticleSystemNode | null = null;
+
+  onStart() {
+    if (!this.fx) return;
+    // 单字段直写（运行态生效，不回写场景文件）
+    this.fx.startColor = 0xffcc33;    // 0xRRGGBB
+    this.fx.emissionRate = 200;
+    this.fx.gravityModifier = 0.5;
+
+    // 或批量合并（maxParticles/blending 变化会重建发射器）
+    const patch: Partial<ParticleSettings> = {
+      duration: 1.5,
+      looping: false,
+      startSpeed: 8,
+      shape: "cone",
+      shapeAngle: 25,
+      colorOverLifetime: true,
+    };
+    this.fx.setSettings(patch);
+
+    // 播放控制
+    this.fx.restart();      // 清空粒子从头开始
+    // this.fx.play();      // 暂停态续播
+    // this.fx.pause();     // 暂停（保留当前粒子）
+    // this.fx.stop();      // 停止发射（存活粒子自然消亡）
+    // this.fx.clear();     // 立即清空全部粒子
+  }
+
+  onUpdate() {
+    if (!this.fx) return;
+    // 运行态（只读）：playing / paused / finished / aliveCount / settings
+    if (this.fx.finished) this.fx.restart();
   }
 }
 ```
@@ -719,7 +1242,9 @@ export default class Explode extends Component {
 地形节点（编辑器 terrainNode）：通用节点能力 + 贴地采样
 （脚本把物体摆到地表、按坡度撒放植被/装饰物用）。
 
-```ts
+```ts tve
+import { Component, property, TerrainNode } from "tve";
+
 export default class Drop extends Component {
   @property({ type: TerrainNode, label: "地形" })
   ground: TerrainNode | null = null;
@@ -727,6 +1252,59 @@ export default class Drop extends Component {
   onUpdate() {
     const p = this.entity.position;
     if (this.ground) p.y = this.ground.sampleHeight(p.x, p.z);
+  }
+}
+```
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, TerrainNode, math } from "tve";
+
+export default class Drop extends Component {
+  @property({ type: TerrainNode, label: "地形" })
+  ground: TerrainNode | null = null;
+
+  @property({ label: "离地高度", step: 0.1 })
+  offset = 0;
+
+  onUpdate() {
+    if (!this.ground) return;
+    // 贴地：双线性采样地表高度（节点本地 x/z；仅平移的地形即世界坐标）
+    const p = this.entity.position;
+    p.y = this.ground.sampleHeight(p.x, p.z) + this.offset;
+    this.entity.position = p;
+  }
+}
+```
+
+撒放装饰物（平坦度检测）：
+
+```ts tve
+import { Component, property, TerrainNode, math, Vec3 } from "tve";
+
+export default class Scatter extends Component {
+  @property({ type: TerrainNode, label: "地形" })
+  ground: TerrainNode | null = null;
+
+  scatter(count: number): Vec3[] {
+    if (!this.ground) return [];
+    const out: Vec3[] = [];
+    for (let i = 0; i < count; i++) {
+      const x = (Math.random() - 0.5) * 100;
+      const z = (Math.random() - 0.5) * 100;
+      // sampleSlope：1 = 平地 → 0 = 崖壁（有限差分估算）
+      if (this.ground.sampleSlope(x, z) > 0.85) {
+        out.push(math.v3(x, this.ground.sampleHeight(x, z), z));
+      }
+    }
+    return out;
+  }
+
+  onStart() {
+    // 地形设置快照（只读；seed/size/segments/heightScale…）
+    void this.ground?.settings;
+    this.scatter(50);
   }
 }
 ```
@@ -776,9 +1354,89 @@ export default class Drop extends Component {
 
 状态机运行器节点（编辑器 fsmRunnerNode）：控制走 {@link engine.logic}
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, FsmRunnerNode, engine, LogicStateInfo } from "tve";
+
+// 状态机运行器节点（编辑器 fsmRunnerNode，绑定 .fsm 资产）；
+// 控制统一走 engine.logic（按实体寻址），本句柄是普通 Entity 子类
+export default class Guard extends Component {
+  @property({ type: FsmRunnerNode, label: "守卫状态机" })
+  brain: FsmRunnerNode | null = null;
+
+  onStart() {
+    if (!this.brain) return;
+    // 发射事件（事件过渡触发器：进入当前状态以来的首次发射有效）
+    engine.logic.fire(this.brain, "onSeen");
+
+    // 写条件过渡的黑板参数（布尔按 0/1 参与比较）
+    engine.logic.setFsmParam(this.brain, "alert", 1);
+
+    // 订阅状态进入（match = 状态 id 或显示名，空串 = 任意）
+    const off = engine.logic.onFsmEnter(this.brain, "Chase", (s: LogicStateInfo) => {
+      engine.log("进入追击", s.name, "已停留", s.time);
+    });
+    // off(); // 解绑
+  }
+
+  onUpdate() {
+    if (!this.brain) return;
+    // 当前状态快照（未绑定/未启动 null）
+    const st = engine.logic.fsmState(this.brain);
+    // 读黑板参数（未定义 undefined）
+    const alert = engine.logic.getFsmParam(this.brain, "alert");
+    // 强制切状态（不经触发器；stateId 或状态名）
+    if (st && st.time > 10) engine.logic.forceFsmState(this.brain, "Patrol");
+    void alert;
+  }
+}
+```
+
 ### class BtRunnerNode extends Entity
 
 行为树运行器节点（编辑器 btRunnerNode）：控制走 {@link engine.logic}
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, BtRunnerNode, engine } from "tve";
+
+// 行为树运行器节点（编辑器 btRunnerNode，绑定 .bt 资产）；控制走 engine.logic
+export default class Hunter extends Component {
+  @property({ type: BtRunnerNode, label: "猎人行为树" })
+  brain: BtRunnerNode | null = null;
+
+  private lastSeq = -1;
+  private step = 0;
+
+  onStart() {
+    if (!this.brain) return;
+    // 写黑板（条件叶子的求值对象）
+    engine.logic.setBtParam(this.brain, "hunger", 80);
+
+    // 注册动作叶处理器（按动作名；返回三值状态，缺省视为 success）
+    engine.logic.onAction(this.brain, "walkTo", (leaf, session) => {
+      // seq = 求值代际：动作重新开始自增，running 续行不变——据此复位内部状态
+      if (session.seq !== this.lastSeq) {
+        this.lastSeq = session.seq;
+        this.step = 0;
+      }
+      return ++this.step >= 10 ? "success" : "running";
+    });
+  }
+
+  onUpdate() {
+    if (!this.brain) return;
+    // 整树最近一次 tick 结果
+    const status = engine.logic.btStatus(this.brain); // "success" | "failure" | "running" | null
+    // 读黑板 / 通用控制
+    void engine.logic.getBtParam(this.brain, "hunger");
+    if (status === "failure") engine.logic.restart(this.brain); // 重启（黑板回默认）
+    // engine.logic.setRunning(this.brain, false);  // 暂停（恢复时未启动则从入口开始）
+  }
+}
+```
 
 ### BTStatus
 
@@ -831,6 +1489,55 @@ type BTActionHandler = (
 
 逻辑控制接口（engine.logic）：状态机/行为树运行器的脚本入口
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, FsmRunnerNode, BtRunnerNode, engine, LogicStateInfo, BTStatus } from "tve";
+
+export default class BrainControl extends Component {
+  @property({ type: FsmRunnerNode, label: "状态机" })
+  fsm: FsmRunnerNode | null = null;
+
+  @property({ type: BtRunnerNode, label: "行为树" })
+  bt: BtRunnerNode | null = null;
+
+  onStart() {
+    // —— 状态机（fsmRunnerNode 实体）——
+    if (this.fsm) {
+      const st: LogicStateInfo | null = engine.logic.fsmState(this.fsm);
+      void st;                                    // {id,name,time} 或 null
+      engine.logic.fire(this.fsm, "onSeen");      // 发射事件
+      engine.logic.setFsmParam(this.fsm, "hp", 3);// 写黑板（数值/布尔）
+      engine.logic.getFsmParam(this.fsm, "hp");   // 读（未定义 undefined）
+      engine.logic.forceFsmState(this.fsm, "Flee");// 强制切状态
+      engine.logic.onFsmEnter(this.fsm, "", (s) => { void s; });  // 订阅进入
+      engine.logic.onFsmExit(this.fsm, "", (s) => { void s; });   // 订阅退出
+      engine.logic.onFsmTransition(this.fsm, (from, to) => { void from; void to; });
+    }
+
+    // —— 行为树（btRunnerNode 实体）——
+    if (this.bt) {
+      const status: BTStatus | null = engine.logic.btStatus(this.bt);
+      void status;                                // "success"|"failure"|"running"|null
+      engine.logic.setBtParam(this.bt, "hunger", 80);
+      engine.logic.getBtParam(this.bt, "hunger");
+      engine.logic.onAction(this.bt, "walkTo", (leaf, session) => {
+        void leaf.id; void leaf.action; void session.seq;
+        return "running" satisfies BTStatus;
+      });
+    }
+  }
+
+  onUpdate() {
+    // —— 通用（两类运行器）——
+    if (this.fsm) {
+      engine.logic.setRunning(this.fsm, true); // 暂停/恢复（恢复时未启动从入口开始）
+      engine.logic.restart(this.fsm);          // 重启：状态回入口/黑板回默认/清记忆
+    }
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `fsmState(entity: Entity)` | `LogicStateInfo \| null` | 状态机当前状态（未绑定/未启动返回 null） |
@@ -844,7 +1551,7 @@ type BTActionHandler = (
 | `btStatus(entity: Entity)` | `BTStatus \| null` | 整树最近一次 tick 结果（未就绪返回 null） |
 | `setBtParam(entity: Entity, name: string, value: number \| boolean)` | `void` | 写黑板（条件叶子的求值对象） |
 | `getBtParam(entity: Entity, name: string)` | `number \| boolean \| undefined` | 读黑板（未定义返回 undefined） |
-| `onAction(entity: Entity, name: string, handler: BTActionHandler)` | `() => void` | 注册动作叶处理器（按动作名；后注册覆盖；返回解绑函数）。 未注册的动作按成功处理。handler 返回 "running" 时下一帧会再次调用 同一动作叶（续行，session.seq 不变）；动作重新开始时 seq 自增，据此复位： ```ts engine.logic.onAction(this.entity, "walkTo", (leaf, session) => { if (session.seq !== this.lastSeq) { this.lastSeq = session.seq; this.step = 0; } return ++this.step >= 10 ? "success" : "running"; }); ``` |
+| `onAction(entity: Entity, name: string, handler: BTActionHandler)` | `() => void` | 注册动作叶处理器（按动作名；后注册覆盖；返回解绑函数）。 未注册的动作按成功处理。handler 返回 "running" 时下一帧会再次调用 同一动作叶（续行，session.seq 不变）；动作重新开始时 seq 自增，据此复位： ```ts import { Component, engine } from "tve"; export default class Walk extends Component { private lastSeq = -1; private step = 0; onStart() { engine.logic.onAction(this.entity, "walkTo", (leaf, session) => { void leaf.id; if (session.seq !== this.lastSeq) { this.lastSeq = session.seq; this.step = 0; } return ++this.step >= 10 ? "success" : "running"; }); } } ``` |
 | `setRunning(entity: Entity, running: boolean)` | `void` | 运行开关（暂停/恢复；恢复时未启动则从入口开始） |
 | `restart(entity: Entity)` | `void` | 重启（状态回入口/黑板回默认/清运行记忆） |
 
@@ -885,6 +1592,36 @@ UI 内边距（UI 单位）
 
 UI 画布节点（编辑器 uiCanvasNode）：屏幕叠加渲染的 UI 容器根，
 Widget（图片/文本/按钮/布局容器）作为其子节点参与叠加；SortOrder 控制叠加顺序。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, UICanvasNode, UITextNode, UIVec2 } from "tve";
+
+export default class HUD extends Component {
+  @property({ type: UICanvasNode, label: "主画布" })
+  canvas: UICanvasNode | null = null;
+
+  @property({ type: UITextNode, label: "计分文本" })
+  scoreText: UITextNode | null = null;
+
+  onStart() {
+    if (!this.canvas) return;
+    // 画布整体叠加序（多画布大者在上）与屏幕适配（仅预览/产物运行时生效）
+    this.canvas.sortOrder = 10;
+    this.canvas.designWidth = 1920; // 设计像素，100px = 1 UI 单位
+    this.canvas.designHeight = 1080;
+    this.canvas.scaleMode = "fixedauto";
+
+    // 点锚点定位：枢轴相对锚点的偏移（UI 单位）
+    if (this.scoreText) {
+      const pos: UIVec2 = { x: -8, y: 4.5 }; // 画布局部：原点在中心，y 向上
+      this.scoreText.anchoredPosition = pos;
+      this.scoreText.text = "得分 0";
+    }
+  }
+}
+```
 
 #### `sortOrder: number`
 
@@ -928,6 +1665,32 @@ UI Widget 共有字段（叠加序 + 矩形尺寸 + 锚点；尺寸/位置单位
 
 UI 图片节点（编辑器 uiImageNode）：矩形图片或纯色块
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, UIImageNode, tween } from "tve";
+
+export default class DamageFlash extends Component {
+  @property({ type: UIImageNode, label: "受击遮罩" })
+  flash: UIImageNode | null = null;
+
+  onStart() {
+    if (!this.flash) return;
+    // 图片资产相对路径（空串 = 纯色矩形；运行态异步加载热替换）
+    this.flash.image = "assets/vignette.png";
+    this.flash.color = 0xff2020; // 着色（与图片相乘）
+    this.flash.sortOrder = 100;  // 画布内叠加序（大者在上）
+
+    // 拉伸铺满：锚点 min<max 的轴由父矩形与边距推导
+    this.flash.anchorMin = { x: 0, y: 0 };
+    this.flash.anchorMax = { x: 1, y: 1 };
+
+    // 淡入淡出（UI 字段可补间：对象字段允许部分分量）
+    tween.from(this.flash, { color: 0x000000 }, 0.05);
+  }
+}
+```
+
 #### `sortOrder: number`
 
 #### `size: { x: number; y: number }`
@@ -955,6 +1718,41 @@ UI 图片节点（编辑器 uiImageNode）：矩形图片或纯色块
 ### class UITextNode extends Entity implements UIWidgetBase
 
 UI 文本节点（编辑器 uiTextNode）：多行文本（自动换行，样式可调）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, UITextNode, dataCenter } from "tve";
+
+export default class ScoreLabel extends Component {
+  @property({ type: UITextNode, label: "计分文本" })
+  label: UITextNode | null = null;
+
+  onStart() {
+    if (!this.label) return;
+    // 内容与样式（\n 分行；超界自动换行）
+    this.label.text = "得分 0";
+    this.label.fontSize = 32;          // 设计像素（100px = 1 单位）
+    this.label.color = 0xffffff;
+    this.label.bold = true;
+    this.label.fontFamily = "mono";    // system / serif / mono
+    this.label.align = "center";       // 相对文本框
+
+    // 尺寸与锚点（UI 单位；点锚点用 anchoredPosition）
+    this.label.size = { x: 6, y: 1 };
+    this.label.anchorMin = { x: 0.5, y: 1 };
+    this.label.anchorMax = { x: 0.5, y: 1 };
+    this.label.pivot = { x: 0.5, y: 1 };
+    this.label.anchoredPosition = { x: 0, y: -0.5 };
+  }
+
+  onUpdate() {
+    // 与数据中心联动刷新
+    const score = dataCenter.get<number>("score") ?? 0;
+    if (this.label) this.label.text = `得分 ${score}`;
+  }
+}
+```
 
 #### `sortOrder: number`
 
@@ -999,6 +1797,35 @@ UI 文本节点（编辑器 uiTextNode）：多行文本（自动换行，样式
 ### class UIButtonNode extends Entity implements UIWidgetBase
 
 UI 按钮节点（编辑器 uiButtonNode）：背景 + 标签，运行时可点击
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, UIButtonNode, engine } from "tve";
+
+export default class MenuButtons extends Component {
+  @property({ type: UIButtonNode, label: "开始按钮" })
+  startBtn: UIButtonNode | null = null;
+
+  onStart() {
+    // 外观（背景/标签均可运行态改写）
+    if (this.startBtn) {
+      this.startBtn.label = "开始游戏";
+      this.startBtn.labelColor = 0xffffff;
+      this.startBtn.fontSize = 28;
+      this.startBtn.color = 0x2f6f3f;    // 背景着色（0xRRGGBB）
+      this.startBtn.image = "";          // 空串 = 纯色背景
+      this.startBtn.interactable = true; // false = 仅展示，不参与点击命中
+    }
+
+    // 点击订阅统一走 engine.ui.onClick（见 UIApi；按钮节点须 interactable）
+    if (this.startBtn) {
+      const off = engine.ui.onClick(this.startBtn, () => engine.log("开始！"));
+      void off; // off() 解绑；组件销毁时调用可防悬挂回调
+    }
+  }
+}
+```
 
 #### `sortOrder: number`
 
@@ -1047,6 +1874,49 @@ UI 按钮节点（编辑器 uiButtonNode）：背景 + 标签，运行时可点�
 UI 布局容器节点（编辑器 uiLayoutNode）：按横向/竖向/网格排列直接子 UI 节点。
 自身有尺寸/锚点（可被父布局排列），无渲染内容；layoutMode=none 时子节点回归锚点定位。
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, UILayoutNode, UITextNode, UIVec2, UIPadding, engine } from "tve";
+
+export default class StatList extends Component {
+  @property({ type: UILayoutNode, label: "属性列表容器" })
+  list: UILayoutNode | null = null;
+
+  onStart() {
+    if (!this.list) return;
+    // 排列模式：横向一行 / 竖向一列 / 网格（none = 子节点回归锚点定位）
+    this.list.layoutMode = "vertical";
+    this.list.padding = { left: 0.5, right: 0.5, top: 0.3, bottom: 0.3 } as UIPadding;
+    this.list.spacing = { x: 0.2, y: 0.3 } as UIVec2; // 子元素间距（UI 单位）
+    this.list.gridColumns = 2;                          // 仅 grid 模式
+
+    // 布局槽位矩形可查询（布局解析后的实际位置）
+    void engine.ui.rectOf(this.list);
+  }
+}
+```
+
+网格背包（grid 模式，行数由子元素数量推导）：
+
+```ts tve
+import { Component, property, UILayoutNode, UITextNode, engine } from "tve";
+
+export default class Inventory extends Component {
+  @property({ type: UILayoutNode, label: "背包网格" })
+  grid: UILayoutNode | null = null;
+
+  onStart() {
+    if (!this.grid) return;
+    this.grid.layoutMode = "grid";
+    this.grid.gridColumns = 5;
+    this.grid.spacing = { x: 0.15, y: 0.15 };
+    // 直接子 UI 节点自动入槽（大小可再经 size 微调）
+    void this.grid.children.filter((c) => c instanceof UITextNode).length;
+  }
+}
+```
+
 #### `sortOrder: number`
 
 #### `size: { x: number; y: number }`
@@ -1085,7 +1955,7 @@ UI 布局容器节点（编辑器 uiLayoutNode）：按横向/竖向/网格排�
 
 向量数学库（引擎自有类型；纯函数，全部返回新对象，不改写入参）。
 
-```ts
+```ts tve
 import { math, Component } from "tve";
 
 export default class Orbit extends Component {
@@ -1094,6 +1964,30 @@ export default class Orbit extends Component {
     this.entity.position = math.scale(dir, 5);
   }
 }
+```
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { math } from "tve";
+
+// 构造与常量
+math.v3(1, 2, 3);        // => {"x":1,"y":2,"z":3}
+math.v3(5);              // => {"x":5,"y":0,"z":0}（缺省分量补 0）
+math.forward;            // => {"x":0,"y":0,"z":-1}（前向 = -Z）
+
+// 运算（纯函数：返回新对象，不改写入参）
+const a = math.v3(1, 2, 3);
+math.add(a, math.v3(1, 1, 1));   // => {"x":2,"y":3,"z":4}
+math.sub(a, math.one);           // => {"x":0,"y":1,"z":2}
+math.scale(a, 2);                // => {"x":2,"y":4,"z":6}
+math.dot(math.right, math.right); // => 1（单位向量点积 = 夹角余弦）
+math.length(math.v3(3, 4, 0));   // => 5
+math.distance(math.zero, math.v3(3, 4, 0)); // => 5
+
+// 归一化（零向量安全返回零向量）
+math.normalize(math.v3(0, 5, 0)); // => {"x":0,"y":1,"z":0}
+math.normalize(math.zero);        // => {"x":0,"y":0,"z":0}
 ```
 
 | 成员 | 类型 | 说明 |
@@ -1170,6 +2064,21 @@ const easing: Readonly<Record<EaseName, (t: number) => number>>;
 
 缓动函数表：名称 → 插值函数（t 0..1 → eased；back/elastic 中间超调出界）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { easing } from "tve";
+
+// 名称 → 插值函数（t 0..1 → eased；back/elastic 中间会超调出界）
+easing.linear(0.5);  // => 0.5
+easing.quadIn(0.5);  // => 0.25（加速起步：t²）
+easing.quadOut(0.5); // => 0.75（减速收尾：1-(1-t)²）
+
+// 与 tween.easing 名称共用同一张表
+easing.bounceOut(1); // => 1（端点保持 0→1）
+easing.elasticOut(0); // => 0
+```
+
 ### TweenValue
 
 ```ts
@@ -1185,8 +2094,8 @@ anchoredPosition、pivot、spacing）/ {left,right,top,bottom}（padding）等�
 补间句柄：链式配置 + 播放控制。由 tween 工厂创建（创建即自动播放，
 同一语句内的链式配置全部生效），脚本不要直接 new。
 
-```ts
-import { tween, Component } from "tve";
+```ts tve
+import { tween, engine, Component } from "tve";
 
 export default class Punch extends Component {
   onStart() {
@@ -1195,6 +2104,43 @@ export default class Punch extends Component {
       .onComplete(() => engine.log("到位"));
   }
 }
+```
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { tween, Component } from "tve";
+
+// 补间句柄由 tween 工厂创建（创建即播放）；同一语句内链式配置全部生效
+const t = tween.value(0, 10, 5)
+  .easing("sineInOut")
+  .delay(0.5)
+  .onStart(() => { /* delay 结束后触发一次 */ })
+  .onUpdate((value, k) => { /* value = 插值输出；k = easing 后系数 0..1 */ })
+  .onComplete(() => { /* 播完触发一次 */ });
+
+t.playing;   // => true
+t.paused;    // => false
+t.loop(3);   // 循环 3 次（-1 = 无限）
+t.yoyo(true); // 往返：偶数次循环反向插值
+
+// 暂停/恢复/停止
+t.pause();
+t.paused;    // => true
+t.resume();
+t.stop();          // 移出推进列表，不再恢复
+t.playing;         // => false
+```
+
+串接（完成后自动启动下一个）：
+
+```ts tve
+import { tween } from "tve";
+
+const first = tween.value(0, 1, 0.2);
+const second = tween.value(1, 0, 0.2);
+const chain = first.then(second); // first 播完自动启动 second
+chain === second; // => true（返回 next 以便继续链式配置）
 ```
 
 #### `constructor()`
@@ -1280,6 +2226,60 @@ complete = true 时先快进到最终落点并触发 onComplete（不启动 then
 
 补间动画 API（`tween` 顶层导出与 `engine.tween` 同一对象）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { tween, easing, Component, MeshNode, property } from "tve";
+
+// 链式配置：创建即自动播放（引擎每帧推进，无需手动驱动）
+const t = tween.value(0, 100, 2).easing("quadOut").onUpdate((v) => {
+  /* v = 当前插值 */
+});
+t.playing;    // => true
+t.duration;   // => 2
+t.progress;   // => 0（尚未推进）
+
+// 31 个缓动名（Robert Penner 标准族）或自定义函数
+tween.value(0, 1, 1).easing(easing.backOut);
+tween.value(0, 1, 1).easing((t: number) => 1 - Math.abs(1 - t * 2));
+
+// 实体变换补间（部分字段：只写 x，其余保持）
+export default class Punch extends Component {
+  @property({ type: MeshNode, label: "目标" })
+  target: MeshNode | null = null;
+
+  onStart() {
+    if (!this.target) return;
+    tween.position(this.target, { x: 5 }, 1)
+      .easing("quadOut")
+      .onComplete(() => tween.scale(this.target!, { y: 0.6 }, 0.15).yoyo(true).loop(2));
+  }
+}
+```
+
+序列与并行组：
+
+```ts tve
+import { tween } from "tve";
+
+// 串行组：依次播放；delay/call 是占位符
+const seq = tween.sequence([
+  tween.delay(0.5),
+  tween.call(() => { /* 开始 */ }),
+  tween.value(0, 10, 1),
+]);
+seq.playing; // => true
+
+// 并行组：同时播放
+tween.parallel([tween.value(0, 1, 1), tween.color(0xff0000, 0x00ff00, 2)]);
+
+// 全局控制
+tween.timeScale = 1;       // 0 = 冻结全部 tween
+tween.activeCount >= 3;    // => true（上面创建的都活跃）
+tween.killAll();           // 停止全部
+tween.activeCount;         // => 0
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `to(target: object, props: Record<string, TweenValue>, duration: number)` | `Tween` | 数值/向量属性插值：目标可以是 Entity（position/rotation/scale 变换、 fontSize/sortOrder 等数字字段）、UI Widget 字段（anchoredPosition/size 等 {x,y} 对象）或任意带同名字段的普通对象；创建即开始播放。 ```ts tween.to(this.entity, { position: { x: 5 }, scale: { y: 2 } }, 1.5); ``` |
@@ -1307,6 +2307,32 @@ const tween: TweenApi;
 
 补间动画系统（与 engine.tween 同一对象）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { tween } from "tve";
+
+// 工厂速查（创建即播放）：
+//   to / from / value / color / position / rotation / scale /
+//   sequence / parallel / delay / call
+const t1 = tween.value(0, 100, 1);
+const t2 = tween.color(0x000000, 0xffffff, 0.5); // 0xRRGGBB 颜色插值
+
+// to：数值/向量属性插值（Entity 变换、UI 字段、任意同名字段对象）
+// from：从 props 反向渐变回当前值（入场动画常用）
+tween.to({ hp: 100 }, { hp: 30 }, 0.3);
+tween.from({ opacity: 0 }, { opacity: 1 }, 0.3);
+
+// 全局控制与统计
+tween.activeCount >= 1; // => true
+tween.pauseAll();
+tween.resumeAll();
+tween.killAll();
+tween.activeCount;      // => 0
+
+void t1; void t2;
+```
+
 ## 脚本通用系统：委托（多播事件）与对象池
 
 两者均为纯脚本设施，与引擎接线无关，
@@ -1317,8 +2343,8 @@ const tween: TweenApi;
 委托：多播事件容器（参考 C# 多播委托）。
 用于把"某件事发生"广播给多个订阅者——组件间解耦通信的标准设施：
 
-```ts
-import { Delegate, Component } from "tve";
+```ts tve
+import { Delegate, Component, engine } from "tve";
 
 export class GameEvents extends Component {
   static readonly onScore = new Delegate<(delta: number) => void>();
@@ -1333,6 +2359,37 @@ GameEvents.onScore.invoke(10);
 语义：同一函数重复订阅只登记一次；invoke 按订阅顺序逐个调用（快照迭代，
 回调内 add/remove 安全）；单个回调抛错被隔离上报，不影响其余回调。
 建议在组件 onDestroy 中 clear()，避免悬挂订阅。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Delegate, Component } from "tve";
+
+// 定义（常放一个公开组件类上作全局事件总线）
+export class GameEvents extends Component {
+  static readonly onScore = new Delegate<(delta: number) => void>();
+}
+
+// 订阅：add 返回退订令牌（成员函数建议用令牌退订）
+const token = GameEvents.onScore.add((delta) => { /* 得分处理 */ });
+GameEvents.onScore.count; // => 1
+
+// 同一函数重复订阅只登记一次（同一引用去重）
+const fn = () => {};
+GameEvents.onScore.add(fn);
+GameEvents.onScore.add(fn);
+GameEvents.onScore.count; // => 2（lambda + fn；fn 重复添加只登记一次）
+
+// 广播：按订阅顺序逐个调用；单个回调抛错被隔离，不影响其余
+GameEvents.onScore.invoke(10);
+
+// 退订：令牌或原函数均可；onDestroy 里 clear() 防悬挂订阅
+GameEvents.onScore.remove(token); // => true
+GameEvents.onScore.remove(fn);    // => true
+GameEvents.onScore.count;         // => 0
+GameEvents.onScore.clear();
+GameEvents.onScore.count;         // => 0
+```
 
 #### `constructor()`
 
@@ -1372,7 +2429,7 @@ GameEvents.onScore.invoke(10);
 对象池：复用对象，避免频繁创建/销毁带来的卡顿与 GC 压力。
 典型用途：子弹、特效、飘字、临时列表等高频小对象：
 
-```ts
+```ts tve
 import { Pool, Component, engine } from "tve";
 
 interface Bullet { active: boolean; x: number; y: number; }
@@ -1395,6 +2452,41 @@ export default class Gun extends Component {
 语义：get 优先复用空闲对象（池空才调用工厂新建）；put 先调 reset 清理再入池
 （空闲数达 max 上限则丢弃交给 GC）；池只回收自己发出的对象——外来对象或重复
 归还返回 false。reset 抛错被捕获忽略（告警上告）。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Pool } from "tve";
+
+interface Bullet {
+  active: boolean;
+  x: number;
+  y: number;
+}
+
+// 工厂 + 可选配置：reset 归还清理 / initial 预热 / max 空闲上限
+const pool = new Pool<Bullet>(
+  () => ({ active: false, x: 0, y: 0 }),
+  { reset: (b) => { b.active = false; }, initial: 2, max: 5 },
+);
+
+pool.count;         // => 2（预热即备好）
+pool.totalCreated;  // => 2
+
+// get：优先复用空闲对象，池空才新建
+const a = pool.get();
+pool.count;         // => 1
+
+// put：先 reset 清理再入池；非本池对象/重复归还返回 false
+pool.put(a);        // => true
+pool.put(a);        // => false（已归还过）
+pool.put({} as Bullet); // => false（外来对象）
+
+// 评估池命中率：totalCreated 增长越慢 = 复用率越高
+pool.prewarm(3);    // 再预热 3 个（受 max 上限约束）
+pool.clear();       // 清空空闲列表（不影响已借出的对象）
+pool.count;         // => 0
+```
 
 #### `constructor(factory: () => T, options?: { /** 归还时的清理回调（put 时调用；抛错被捕获忽略） */ reset?: (item: T) => void; /** 预热数量（创建即备好空闲对象） */ initial?: number; /** 空闲上限（超出后归还的对象被丢弃交给 GC） */ max?: number; })`
 
@@ -1456,7 +2548,7 @@ export default class Gun extends Component {
 
 数据中心：跨组件共享的命名数据仓库，内置热/冷分解。
 
-```ts
+```ts tve
 import { dataCenter, Component } from "tve";
 
 export default class Game extends Component {
@@ -1464,7 +2556,7 @@ export default class Game extends Component {
     dataCenter.set("score", 0);            // 写即热
   }
   onEnemyKilled() {
-    const score = dataCenter.get<number>("score", 0);
+    const score = dataCenter.get<number>("score") ?? 0;
     dataCenter.set("score", score + 10);   // 其他组件可随时读取
   }
   onDestroy() {
@@ -1481,6 +2573,38 @@ export default class Game extends Component {
 - 清扫默认按 sweepInterval 惰性自动触发，也可手动 `sweep()`；
 - 冷数据建议存纯数据（普通对象/数组/原始值）；含函数等不可克隆对象按
   结构化克隆 → JSON → 原引用逐级兜底。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { DataCenter } from "tve";
+
+// 隔离实例（new；全局单例见 dataCenter）——可自定义热/冷策略
+const dc = new DataCenter({ hotLimit: 2, coldTtl: 0 });
+
+// 写即热、读返回活动引用
+dc.set("score", 10);
+dc.get<number>("score"); // => 10
+dc.has("score");         // => true
+dc.keys();               // => ["score"]
+dc.hotKeys();            // => ["score"]
+
+// 冷热分解：cool 降冷为冻结快照；读冷数据自动回温并返回快照值
+dc.set("hp", 100);
+dc.cool("hp");           // => true
+dc.coldKeys();           // => ["hp"]
+dc.get<number>("hp");    // => 100（回温 + 返回快照）
+dc.hotKeys().length;     // => 2（回温后全热）
+
+// sweep 手动清扫：闲置降冷 + 超出 hotLimit 按 LRU 降冷
+dc.set("mp", 50);
+dc.sweep();              // 超出 hotLimit=2，最久未访问的降冷
+dc.stats().cold >= 1;    // => true
+
+// 删除（热/冷一并移除）
+dc.delete("score");      // => true
+dc.get<number>("score", 0); // => 0（未命中回 defaultValue）
+```
 
 #### `constructor(options?: DataCenterOptions)`
 
@@ -1543,6 +2667,36 @@ const dataCenter: DataCenter;
 
 全局数据中心单例（跨组件共享游戏数据；需要隔离时 new DataCenter()）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { dataCenter, Component } from "tve";
+
+// 全局单例：跨组件共享游戏数据。写入即热，其他组件随时读取
+export default class ScoreBoard extends Component {
+  onStart() {
+    dataCenter.set("score", 0);
+  }
+
+  onEnemyKilled() {
+    // 未命中回默认值；get 返回 T | undefined（严格模式收窄后再用）
+    const score = dataCenter.get<number>("score") ?? 0;
+    dataCenter.set("score", score + 10);
+  }
+
+  onDestroy() {
+    // 用完清理，避免悬挂数据
+    dataCenter.delete("score");
+  }
+}
+
+// 基本读写断言（单例本身可在任何位置直接用）
+dataCenter.set("t", 1);
+dataCenter.get<number>("t"); // => 1
+dataCenter.has("t");         // => true
+dataCenter.delete("t");      // => true
+```
+
 ## 内置组件门面（getComponent / addComponent / 组件字段声明的对象）
 
 门面 = 组件设置 + 运行时后端的实时视图：属性写入即时生效（预览运行态，
@@ -1551,6 +2705,39 @@ const dataCenter: DataCenter;
 ### declare class RigidBody
 
 刚体组件门面：mode 为刚体形态；物理方法与 engine.physics 同名接口等价（已绑定本实体）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, RigidBody, Vec3 } from "tve";
+
+export default class Jump extends Component {
+  rigid!: RigidBody; // 组件字段：运行期自动绑定门面（未挂刚体时为空转）
+
+  onFixedUpdate(fixedDelta: number) {
+    // 物理写入放固定步长（1/60s，与物理步进同频，先于同帧 onUpdate）
+    const v = this.rigid.getLinearVelocity();
+    if (v && v.y === 0) {
+      // 施加冲量起跳（世界空间，N·s）
+      this.rigid.applyImpulse(0, 6, 0);
+      this.rigid.wakeUp();
+    }
+    // 速度直写 / 重力缩放（0 = 不受重力）
+    // this.rigid.setLinearVelocity(0, 0, 5);
+    // this.rigid.setGravityScale(0.5);
+    void fixedDelta;
+  }
+
+  onCollisionEnter(other: typeof this.entity) {
+    // 碰撞回调里读门面信息
+    void this.rigid.mode;           // "static" | "kinematic" | "dynamic"
+    void this.rigid.colliderCount;  // 碰撞体数量
+    void this.rigid.gravityScale;
+    void other.id;
+    void ({} as Vec3);
+  }
+}
+```
 
 #### `constructor()`
 
@@ -1608,6 +2795,30 @@ type RigidBodyFacade = RigidBody;
 
 碰撞体组件门面（只读信息；形状/表面材质在检查器编辑，运行时不可变）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, Collider, Entity } from "tve";
+
+export default class Pickup extends Component {
+  // 碰撞体门面：形状/表面材质在检查器编辑，运行时只读
+  col!: Collider;
+
+  onCollisionEnter(other: Entity) {
+    const col = this.entity.getComponent(Collider) ?? this.col;
+    void col.shape;      // "box"/"sphere"/"capsule"/"cylinder"/"convex"（场景命中形状）
+    void col.isSensor;   // 传感器：只产生触发不产生碰撞响应
+    void col.friction;   // 摩擦系数
+    void col.restitution;// 弹性系数
+    void col.count;      // 物理世界中的碰撞体数量
+    // 传感器触发区（拾取物/传送门）惯用法：isSensor + onCollisionEnter
+    if (col.isSensor && other.name === "Player") {
+      // 拾取逻辑……
+    }
+  }
+}
+```
+
 #### `constructor()`
 
 @internal 由运行时构造，脚本不要直接 new
@@ -1643,6 +2854,40 @@ type RigidBodyFacade = RigidBody;
 ### declare class Light
 
 灯光组件门面：设置写入即时同步到活动灯光对象（类型切换重建灯光）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, LightNode, Light, tween } from "tve";
+
+export default class Torch extends Component {
+  @property({ type: LightNode, label: "火把节点" })
+  lamp: LightNode | null = null;
+
+  onStart() {
+    // 灯光属性经组件门面 Light 访问（节点句柄只管变换/层级）
+    const light = this.lamp?.getComponent(Light);
+    if (!light) return;
+    light.kind = "point";       // point/directional/spot/ambient（切换即重建灯光）
+    light.color = 0xffa030;
+    light.intensity = 2;
+    light.distance = 12;        // 点光/聚光照射距离
+    light.decay = 2;            // 物理衰减指数
+    light.castShadow = true;
+    light.shadowStrength = 0.6; // 阴影浓度 0~1
+
+    // 聚光灯参数
+    // light.angle = 30;        // 光束半角（度）
+    // light.penumbra = 0.4;    // 边缘柔和度 0~1
+
+    // 渲染层级掩码（只照亮掩码内层的对象；-1 = 全部）
+    // light.cullingMask = 0b11;
+
+    // 火光呼吸（intensity 补间循环往返）
+    tween.to(light, { intensity: 3 }, 0.4).yoyo(true).loop(-1).easing("sineInOut");
+  }
+}
+```
 
 #### `constructor()`
 
@@ -1762,6 +3007,39 @@ Shadow 类型档位（"off" | "hard" | "soft"；读写投射开关 + 软化半�
 
 音源组件门面：播放控制按组件 id 寻址；设置写入经运行时合并生效
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, AudioSource } from "tve";
+
+export default class Sfx extends Component {
+  sfx!: AudioSource; // 组件字段：运行期自动绑定门面
+
+  onStart() {
+    // 音源设置（写入经运行时合并生效）
+    this.sfx.source = "assets/hit.ogg"; // 音频资产引用（写入即重载）
+    this.sfx.loop = false;
+    this.sfx.volume = 0.8;              // 0..1
+    this.sfx.speed = 1;                 // 播放倍速 0.1..4
+    this.sfx.spatial = "3d";            // "2d" 全局 / "3d" 位置音源
+
+    // 播放控制（按组件 id 寻址）
+    this.sfx.play();     // 暂停态续播；停止/播完态从头播
+    // this.sfx.pause();
+    // this.sfx.resume();
+    // this.sfx.stop();
+    this.sfx.setVolume(0.5); // 运行时音量
+  }
+
+  onUpdate() {
+    // 只读运行态
+    void this.sfx.playing;
+    void this.sfx.paused;
+    void this.sfx.ready; // 缓冲是否就绪
+  }
+}
+```
+
 #### `constructor()`
 
 @internal 由运行时构造，脚本不要直接 new
@@ -1845,6 +3123,33 @@ Shadow 类型档位（"off" | "hard" | "soft"；读写投射开关 + 软化半�
 ### declare class AnimationClip
 
 关键帧动画剪辑组件门面（.anim 资产绑定 + 播放控制/进度/倍速）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, AnimationClip } from "tve";
+
+export default class DoorAnim extends Component {
+  anim!: AnimationClip; // 关键帧动画剪辑组件（.anim 资产）门面
+
+  onStart() {
+    // 绑定剪辑（相对路径；写入即重载；空串解绑）
+    this.anim.clip = "assets/door-open.anim";
+    this.anim.loop = false;
+    this.anim.speed = 1;
+    this.anim.autoplay = true;
+
+    // 播放控制与进度
+    this.anim.play();   // 从头播放
+    // this.anim.pause();
+    // this.anim.resume();
+    // this.anim.stop();        // 停止并回初始姿势
+    // this.anim.time = 0.5;    // 写入即跳转采样（秒）
+    void this.anim.duration;    // 剪辑时长（秒；未加载 0）
+    void this.anim.playing;
+  }
+}
+```
 
 #### `constructor()`
 
@@ -1963,6 +3268,47 @@ type AnimLoopMode = "loop" | "once" | "pingpong";
 动画图定义（SkeletalAnimation.ensureGraph / addComponent(SkeletalAnimation) 用；
  运行期 graph getter 返回同构的活对象，states/transitions/entry/params 可直接改写）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, SkeletalAnimation, AnimGraphDef } from "tve";
+
+export default class Locomotion extends Component {
+  anim!: SkeletalAnimation; // 组件字段：运行期自动绑定门面
+
+  onStart() {
+    // 动画图定义：状态（模型内嵌剪辑名）+ 条件过渡 + 参数表
+    const graph: AnimGraphDef = {
+      entry: "Idle",
+      states: [
+        { name: "Idle", clip: "idle", loop: "loop" },
+        { name: "Walk", clip: "walk", speed: 1.2 },
+        { name: "Run", clip: "run" },
+      ],
+      transitions: [
+        { from: "Idle", to: "Walk", duration: 0.2, conditions: [{ param: "speed", op: ">", value: 0.1 }] },
+        { from: "Walk", to: "Run", duration: 0.25, exitTime: 0.5, conditions: [{ param: "speed", op: ">", value: 5 }] },
+        { from: "Run", to: "Idle", duration: 0.3 },
+      ],
+      params: { speed: 0 },
+    };
+    if (this.anim.ensureGraph(graph)) {
+      // 参数写入驱动条件过渡（每帧评估）
+      this.anim.setParam("speed", 6);
+    }
+  }
+
+  onUpdate() {
+    // 运行期活对象可直接改写（下一帧评估生效）
+    if (this.anim.graph) {
+      this.anim.graph.params!.speed = 2;
+    }
+    // 图模式下 play(状态名) 切换；getParam 读取
+    void this.anim.getParam("speed");
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `entry?` | `string` | 入口状态名（缺省首个状态） |
@@ -2024,6 +3370,46 @@ IK 链关节（effector → 根方向的逐级骨骼；rotationMin/Max 为度制
 
 IK 链定义（CCD 求解；目标点由引擎创建并挂模型根下——局部空间）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, SkeletalAnimation, IKDef } from "tve";
+
+export default class LookAt extends Component {
+  anim!: SkeletalAnimation;
+
+  onStart() {
+    // 注册 IK 链（CCD 求解）：末端效应器 + 从其父级向根的关节链
+    const def: IKDef = {
+      name: "headLook",
+      effector: "head",
+      links: [
+        { bone: "neck", rotationMin: [-30, -45, -15], rotationMax: [30, 45, 15] },
+        { bone: "spine2", enabled: true },
+      ],
+      iteration: 2,
+    };
+    const id = this.anim.addIK(def); // 成功返回 IK id，失败 null
+    if (id) {
+      // 目标点（模型根局部空间）每帧写入驱动求解
+      this.ikId = id;
+    }
+  }
+
+  private ikId = "";
+
+  onUpdate() {
+    if (!this.ikId) return;
+    this.anim.setIKTargetPosition(this.ikId, 0.3, 1.6, -0.8);
+    // 读取 / 启停 / 清单
+    void this.anim.getIKTargetPosition(this.ikId);
+    void this.anim.iks; // [{id,name,effector,enabled}]
+    // this.anim.setIKEnabled(this.ikId, false);
+    // this.anim.removeIK(this.ikId);
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `name?` | `string` | 可选名称（缺省同 id） |
@@ -2077,6 +3463,85 @@ IK 链运行态条目
 骨骼动画（模型内嵌动画）门面：单剪辑 anim / 动画图 animGraph 的运行期视图。
 仅模型网格节点（source=model）拥有绑定；图模式下 play(状态名) 切换状态，
 setParam 写入图参数驱动条件过渡。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, SkeletalAnimation } from "tve";
+
+export default class ActorAnim extends Component {
+  // 仅模型网格节点拥有绑定；组件字段运行期自动绑定门面
+  anim!: SkeletalAnimation;
+
+  onStart() {
+    // 单剪辑模式
+    this.anim.clip = "run";      // 模型内嵌剪辑名（写入即切换播放）
+    this.anim.speed = 1.2;
+    this.anim.loop = "loop";     // loop / once / pingpong
+    this.anim.play();            // 缺省取首个剪辑
+
+    void this.anim.clips;        // 模型内嵌剪辑名列表
+    void this.anim.currentClip;
+    void this.anim.playing;
+    void this.anim.hasGraph;     // 是否动画图模式
+
+    // —— 混合层（权重独立于 play/stop）——
+    this.anim.fadeIn("walk", 0.25);          // 权重 0→1
+    this.anim.fadeOut("run", 0.25);          // 权重→0（动作不停止）
+    this.anim.crossFade("run", "walk", 0.3); // 交叉淡化（warp 自动对齐相位）
+    this.anim.setWeight("aim", 0.7);         // 直接设权重（确保动作在播）
+    void this.anim.getWeight("aim");
+    this.anim.setActionSpeed("walk", 1.5);   // 单动作速度（与全局速度相乘）
+    this.anim.setActionLoop("attack", "once");
+    this.anim.playOneShot("wave");           // 一次性动作：定格末帧后淡回基础层
+    this.anim.globalSpeed(1);
+    this.anim.stopAction("aim");             // 停止单层
+
+    // 事件订阅（返回注销函数）
+    const off1 = this.anim.onFinished((e) => { void e.clip; }); // 播完
+    const off2 = this.anim.onLoop((e) => { void e.clip; });     // 循环
+    void off1; void off2;
+
+    // 加法混合层（独立权重，如疲劳叠加摆动）
+    this.anim.playAdditive("tired", 0.5);
+    this.anim.stopAdditive("tired");
+  }
+}
+```
+
+蒙皮完全控制（骨骼/形态键/IK/绑定）：
+
+```ts tve
+import { Component, SkeletalAnimation } from "tve";
+
+export default class RigControl extends Component {
+  anim!: SkeletalAnimation;
+
+  onStart() {
+    void this.anim.skinInfo;   // {boneCount, boneNames, morphMeshes}
+    void this.anim.bones;      // 骨骼名列表
+    void this.anim.boneHierarchy; // [{name,parent,children}]
+    void this.anim.morphs;     // [{mesh, targets}] 形态键清单
+
+    // 骨骼读写（度制欧拉；动作播放中 mixer 每帧覆写被驱动骨骼——
+    // 手动写入适用于暂停/未被驱动的骨骼，或每帧覆写场景）
+    void this.anim.getBoneTransform("head"); // {position,rotation,scale} 快照
+    this.anim.setBoneRotation("head", 0, 15, 0);
+    this.anim.resetBone("head");
+    this.anim.resetPose();
+    void this.anim.getBoneWorldPosition("leftHand");
+
+    // 形态键（0..1 权重；mesh 传 "" 取首个含该目标的网格）
+    this.anim.setMorphWeight("", "smile", 0.8);
+    void this.anim.getMorphWeight("", "smile");
+
+    // 场景节点绑到骨骼上跟随（装备挂点）
+    // this.anim.attachToBone(swordEntity, "rightHand", { keepOffset: true });
+    // this.anim.detach(swordEntity);
+    void this.anim.attachments;
+  }
+}
+```
 
 #### `constructor()`
 
@@ -2417,6 +3882,52 @@ addComponent(SkeletalAnimation) 创建参数（仅模型网格节点；缺省项
 指针支持多点触控（pointers / getPointer 按 pointerId 区分各触点，
 鼠标也是其中一个触点，pointerId 通常恒定）。
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, engine, math } from "tve";
+
+export default class Controls extends Component {
+  private offKey?: () => void;
+
+  onStart() {
+    // —— 事件订阅（返回取消订阅函数；指针事件参数为 PointerState）——
+    this.offKey = engine.input.onKeyDown((key) => {
+      // key 为 KeyboardEvent.code（"KeyW"、"Space"、"ArrowLeft"…）
+      if (key === "Space") this.jump();
+    });
+    // engine.input.onKeyUp((key) => {});
+    // engine.input.onPointerDown((p) => {});   // p.x / p.y / p.down / p.pointerId
+    // engine.input.onPointerUp((p) => {});
+    // engine.input.onPointerMove((p) => {});
+    // engine.input.onPointerCancel((p) => {}); // 系统抢占：不会再有 onPointerUp
+  }
+
+  onUpdate(delta: number) {
+    // —— 轮询 ——
+    const w = engine.input.isKeyDown("KeyW");
+    const arrow = engine.input.keys.has("ArrowLeft"); // 当前按下集合（实时）
+    if (w || arrow) this.entity.translate(0, 0, -2 * delta);
+
+    // 主指针（画布内 CSS 像素，左上原点；跟随最后活跃触点）
+    void engine.input.pointer.x;
+    void engine.input.pointer.down;
+
+    // 多点触控：pointerId → 状态实时映射（鼠标也是一个触点）
+    for (const p of engine.input.pointers.values()) void p.pointerId;
+    const first = engine.input.getPointer(0);
+    void first;
+    void math;
+  }
+
+  jump() { /* ... */ }
+
+  onDisable() {
+    this.offKey?.(); // 释放订阅
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `isKeyDown(key: string)` | `boolean` | 按键当前是否按下 |
@@ -2435,6 +3946,37 @@ addComponent(SkeletalAnimation) 创建参数（仅模型网格节点；缺省项
 
 场景查询
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, engine, CameraNode, Light, MeshNode } from "tve";
+
+export default class SceneQuery extends Component {
+  onStart() {
+    // 根实体（空场景 null）
+    void engine.scene.root;
+
+    // 按名称/路径查找（语义同 Entity.find；深度优先）
+    const cam = engine.scene.find(" Cameras/Main");
+    if (cam instanceof CameraNode) cam.lookAt({ x: 0, y: 0, z: 0 });
+
+    // 全量快照
+    void engine.scene.findAll().length;
+
+    // 按标签查（检查器 Node 卡设置 tag）
+    const enemy = engine.scene.findByTag("enemy");      // 第一个命中
+    void engine.scene.findAllByTag("enemy").length;     // 文档序全量
+
+    // 按类型查组件（token = 脚本类/源路径/类名/内置门面类/类型键）
+    const sun = engine.scene.findComponent(Light);      // 文档序第一个
+    void engine.scene.findComponents(Light).length;     // 全量
+    const hp = engine.scene.findComponent("HPBar");     // 按脚本类名
+    void hp;
+    void MeshNode;
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `root` | `Entity \| null` | 根实体（空场景为 null） |
@@ -2449,6 +3991,26 @@ addComponent(SkeletalAnimation) 创建参数（仅模型网格节点；缺省项
 
 模型动画运行期控制（按实体寻址；仅模型网格节点有效）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, MeshNode, engine } from "tve";
+
+export default class AnimControl extends Component {
+  @property({ type: MeshNode, label: "角色（模型网格）" })
+  actor: MeshNode | null = null;
+
+  onStart() {
+    if (!this.actor) return;
+    // 模型动画运行期控制（按实体寻址；仅模型网格节点有效）
+    engine.animation.play(this.actor, "run"); // 图模式 = 目标状态名；缺省取首个剪辑
+    // engine.animation.pause(this.actor);
+    // engine.animation.resume(this.actor);
+    // engine.animation.stop(this.actor);   // 回初始姿势
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `play(entity: Entity, clip?: string)` | `void` | 播放（单剪辑模式 clip = 剪辑名缺省取首个；动画图模式 clip = 目标状态名） |
@@ -2460,6 +4022,27 @@ addComponent(SkeletalAnimation) 创建参数（仅模型网格节点；缺省项
 
 音频运行期控制（按实体寻址；音源节点与挂音源组件的节点有效，
 实体上多个音源时寻址首个）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, MeshNode, engine } from "tve";
+
+export default class Bgm extends Component {
+  @property({ type: MeshNode, label: "音源节点" })
+  source: MeshNode | null = null;
+
+  onStart() {
+    if (!this.source) return;
+    // 音频运行期控制（按实体寻址：音源节点或挂音源组件的节点）
+    engine.audio.play(this.source);
+    engine.audio.setVolume(this.source, 0.5); // 运行时音量（不落盘）
+    // engine.audio.pause(this.source);
+    // engine.audio.resume(this.source);
+    // engine.audio.stop(this.source);
+  }
+}
+```
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -2474,6 +4057,34 @@ addComponent(SkeletalAnimation) 创建参数（仅模型网格节点；缺省项
 粒子系统运行期控制（按实体寻址；仅粒子系统节点有效）。
 拿到 {@link ParticleSystemNode} 实体时也可直接调用其同名方法/属性。
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, ParticleSystemNode, engine, ParticleSettings } from "tve";
+
+export default class FxControl extends Component {
+  @property({ type: ParticleSystemNode, label: "烟尘特效" })
+  smoke: ParticleSystemNode | null = null;
+
+  onStart() {
+    if (!this.smoke) return;
+    // 按实体寻址的运行期控制（与节点句柄同名方法等价）
+    engine.particles.play(this.smoke);
+    // engine.particles.pause(this.smoke);
+    // engine.particles.stop(this.smoke);   // 停止发射，存活粒子自然消亡
+    // engine.particles.restart(this.smoke);
+    // engine.particles.clear(this.smoke);
+
+    // 运行态快照（非粒子节点 null）
+    void engine.particles.stateOf(this.smoke); // {playing,paused,finished,alive,time}
+
+    // 合并发射设置（子集；运行态生效不回写场景文件）
+    const patch: Partial<ParticleSettings> = { emissionRate: 120, startColor: 0x999999 };
+    engine.particles.setSettings(this.smoke, patch);
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `play(entity: Entity)` | `void` | 播放（暂停态续播；停止/播完态从头开始） |
@@ -2487,6 +4098,45 @@ addComponent(SkeletalAnimation) 创建参数（仅模型网格节点；缺省项
 ### interface PhysicsApi
 
 物理运行期控制（按实体寻址；仅挂了刚体组件的节点有效）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, CameraNode, engine } from "tve";
+
+export default class ClickMove extends Component {
+  @property({ type: CameraNode, label: "相机" })
+  cam: CameraNode | null = null;
+
+  onFixedUpdate() {
+    if (!this.cam) return;
+    // —— 施力/速度（动力学体；放固定步长回调）——
+    // engine.physics.applyImpulse(this.entity, 0, 5, 0);  // 冲量（N·s，世界空间）
+    // engine.physics.applyForce(this.entity, 0, -9.8, 0); // 持续力（N，每帧调用）
+    // engine.physics.setLinearVelocity(this.entity, 0, 0, 5);   // m/s
+    // engine.physics.setAngularVelocity(this.entity, 0, 3, 0); // rad/s
+    void engine.physics.getLinearVelocity(this.entity); // Vec3 | null
+    void engine.physics.bodyInfo(this.entity); // {mode,gravityScale,colliderCount} | null
+    // engine.physics.setGravityScale(this.entity, 0); // 0 = 不受重力
+    // engine.physics.wakeUp(this.entity);             // 修改参数后唤醒睡眠体
+    // engine.physics.setGravity(0, -9.8, 0);          // 世界重力（影响全部动力学体）
+  }
+
+  onUpdate() {
+    // —— 射线投射（拾取/视线检测）——
+    if (!this.cam || !engine.input.pointer.down) return;
+    const ray = this.cam.screenToRay(engine.input.pointer.x, engine.input.pointer.y);
+    if (!ray) return;
+    const hits = engine.physics.castRay({
+      origin: ray.origin,
+      direction: ray.direction,
+      maxDistance: 100,
+      excludeNodeIds: [this.entity.id], // 排除自身
+    });
+    void hits; // PhysicsRayHit[]：按距离升序（nodeId/point/normal/distance）
+  }
+}
+```
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -2552,6 +4202,44 @@ UI 矩形（画布局部空间：原点 = 画布中心，y 向上；单位 = UI 
 
 UI 运行期控制（画布叠加序读写 + 按钮点击订阅 + 布局/坐标查询；按实体寻址）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, property, UICanvasNode, UITextNode, engine } from "tve";
+
+export default class UiRuntime extends Component {
+  @property({ type: UITextNode, label: "提示文本" })
+  tip: UITextNode | null = null;
+
+  onStart() {
+    if (!this.tip) return;
+    // 合并 Widget 设置（子集；运行态生效不回写场景文件）
+    engine.ui.set(this.tip, { text: "按 E 交互", color: 0xffcc00, fontSize: 24 });
+    // 读取当前设置快照（非 UI 节点 null）
+    void engine.ui.get(this.tip);
+
+    // 按钮点击订阅 / 解绑（仅 uiButtonNode 且 interactable）
+    // const off = engine.ui.onClick(btn, () => {});
+    // engine.ui.offClick(btn, handler);
+  }
+
+  onUpdate() {
+    if (!this.tip) return;
+    // 解析矩形（画布局部：原点在中心，y 向上，UI 单位；布局容器子节点返回槽位矩形）
+    const r = engine.ui.rectOf(this.tip);
+    // 屏幕度量（随窗口/缩放模式变化，建议每帧读取）
+    const m = engine.ui.metricsOf(this.tip);
+    // 屏幕像素 → 画布局部 UI 坐标（与 engine.input.pointer 同一像素空间）
+    const p = engine.ui.screenToUi(this.tip, engine.input.pointer.x, engine.input.pointer.y);
+    if (r && p) {
+      const inside = Math.abs(p.x - r.cx) <= r.w / 2 && Math.abs(p.y - r.cy) <= r.h / 2;
+      engine.ui.set(this.tip, { color: inside ? 0xffffff : 0x888888 });
+    }
+    void m;
+  }
+}
+```
+
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `set(entity: Entity, patch: Record<string, unknown>)` | `void` | 合并 Widget/画布设置（子集；运行态生效，不回写场景文件） |
@@ -2565,6 +4253,54 @@ UI 运行期控制（画布叠加序读写 + 按钮点击订阅 + 布局/坐标�
 ### interface EngineApi
 
 引擎入口（时间 / 输入 / 场景 / 动画 / 音频 / 粒子 / 物理 / UI / 逻辑 / 补间 / 日志）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { Component, engine, math, tween, MeshNode, CameraNode } from "tve";
+
+export default class EngineTour extends Component {
+  onStart() {
+    // 时间（只读）
+    void engine.time.delta;   // 距上一帧秒数
+    void engine.time.elapsed; // 累计秒数
+    void engine.time.frame;   // 帧序号（从 1 起）
+
+    // 各系统入口（详见对应专题文档）
+    void engine.input;        // 键盘/指针
+    void engine.scene;        // 场景查询
+    void engine.animation;    // 模型动画
+    void engine.audio;        // 音频
+    void engine.particles;    // 粒子
+    void engine.physics;      // 物理
+    void engine.ui;           // UI 运行期
+    void engine.logic;        // 状态机/行为树
+    void engine.tween;        // 补间（与顶层导出 tween 同一对象）
+
+    // 日志 → 编辑器控制台（预览）/ 浏览器控制台（发布产物）
+    engine.log("就绪", engine.time.frame);
+    engine.warn("低血量");
+    engine.error("异常");
+
+    void math;
+    void MeshNode;
+    void CameraNode;
+  }
+}
+```
+
+无宿主空转语义（doctest 实测：预览之外的环境安全降级）：
+
+```ts tve
+import { engine } from "tve";
+
+// 未注入场景宿主时各查询安全空转，不抛错
+engine.scene.root;          // => null
+engine.scene.find("任意");   // => null
+engine.scene.findAll();     // => []
+engine.scene.findAllByTag("x"); // => []
+engine.time.frame;          // => 0
+```
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -2590,6 +4326,29 @@ const engine: EngineApi;
 
 引擎全局入口
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { engine, VERSION } from "tve";
+
+// 引擎全局入口：时间 / 输入 / 场景 / 动画 / 音频 / 粒子 / 物理 / UI / 逻辑 / 补间 / 日志
+engine.time;      // TimeState（delta/elapsed/frame）
+engine.input;     // InputApi
+engine.scene;     // SceneApi
+engine.animation; // AnimationApi
+engine.audio;     // AudioApi
+engine.particles; // ParticlesApi
+engine.physics;   // PhysicsApi
+engine.ui;        // UIApi
+engine.logic;     // LogicApi
+engine.tween;     // TweenApi（与顶层 tween 同一对象）
+
+VERSION; // => "1.3.0"
+
+// 无宿主安全空转（doctest 实测）
+engine.scene.root; // => null
+```
+
 ### math
 
 ```ts
@@ -2598,6 +4357,55 @@ const math: MathApi;
 
 向量数学库（纯函数，详见 {@link MathApi}）
 
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { math } from "tve";
+
+// 距离判定用平方（免开方）
+math.distanceSq(math.zero, math.v3(3, 4, 0)); // => 25
+
+// 插值与移动
+math.lerp(math.zero, math.v3(10, 0, 0), 0.5);        // => {"x":5,"y":0,"z":0}
+math.moveTowards(math.zero, math.v3(10, 0, 0), 3);   // => {"x":3,"y":0,"z":0}
+math.equals(math.v3(0, 0, 0), math.v3(1e-9, 0, 0));  // => true（缺省 1e-6 容差）
+
+// 标量与角度（度制，与 Entity.rotation 同约定）
+math.clamp(15, 0, 10);              // => 10
+math.deltaAngle(359, 0);            // => 1（最短方向）
+math.moveTowardsAngle(170, 190, 5); // => 175
+math.deadZone(0.05, 0.15);          // => 0（死区内归零）
+math.degToRad(180);                 // => 3.141592653589793
+math.radToDeg(Math.PI / 2);         // => 90
+
+// 矩阵（列主序 16 数组）
+math.mat4().length; // => 16
+```
+
+在组件里配合帧参数的典型用法：
+
+```ts tve
+import { Component, property, math, MeshNode } from "tve";
+
+export default class Follow extends Component {
+  @property({ type: MeshNode, label: "跟随目标" })
+  target: MeshNode | null = null;
+
+  @property({ label: "速度（米/秒）", min: 0 })
+  speed = 3;
+
+  onUpdate(delta: number) {
+    if (!this.target) return;
+    // 匀速逼近目标（帧率无关）
+    this.entity.position = math.moveTowards(
+      this.entity.position,
+      this.target.position,
+      this.speed * delta,
+    );
+  }
+}
+```
+
 ### VERSION
 
 ```ts
@@ -2605,3 +4413,12 @@ const VERSION: string;
 ```
 
 SDK 版本（与编辑器/播放器同版发布）
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { VERSION } from "tve";
+
+// SDK 版本（与编辑器/播放器同版发布）
+VERSION; // => "1.3.0"
+```

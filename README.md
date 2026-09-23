@@ -7,7 +7,7 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 - **第一次使用**：按 [编辑器总览](editor/overview.md) → [项目管理](editor/projects.md) → [场景编辑](editor/scene.md) 的顺序读，即可完成「建项目 → 搭场景 → 预览」的最小闭环；
 - **做 UI**：[UI 系统](editor/ui.md)（编辑器侧）+ [SDK UI](sdk/ui.md)（脚本侧）；
 - **做动画**：[动画编辑器](editor/animation.md)（关键帧）+ [内置组件门面](sdk/components.md)（骨骼动画/动画图）；
-- **写脚本**：从 [SDK 总览](sdk/overview.md) 入门，[装饰器](sdk/decorators.md) 声明属性，[engine 入口](sdk/engine.md) 查全量 API；
+- **写脚本**：从 [SDK 总览](sdk/overview.md) 入门，[装饰器](sdk/decorators.md) 声明属性，[engine 入口](sdk/engine.md) 查全量 API，[逻辑运行器](sdk/logic.md) 做状态机/行为树；
 - **自定义效果**：[着色器与自定义效果](editor/shaders.md)；
 - **做行为逻辑**：[场景图](editor/graph.md)（可视化节点编辑运行时行为）；
 - **发布**：[预览与构建](editor/preview-build.md)。
@@ -40,6 +40,8 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 
 **全量 API 参考**见 [API 参考](sdk/api.md)——由 `tve.d.ts` 自动生成（`pnpm gen:api-docs`），请勿手改；下表专题文档负责讲解与示例。
 
+> **文档代码块即测试**：标记为 `ts tve` 的代码块全部自包含、可直接复制进项目使用，并随文档测试套件逐块验证（类型检查 + 真实执行，`pnpm docs:test`）——示例永远不会与引擎 API 漂移。API 参考页的每个声明都带有这样的示例。
+
 | 文档 | 内容 |
 | --- | --- |
 | [SDK 总览](sdk/overview.md) | 快速上手、生命周期详解、每帧调度顺序、执行顺序与错误隔离、约定速查 |
@@ -47,11 +49,12 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 | [实体与查询](sdk/entity.md) | 节点 vs 组件区分、`Entity` 全量属性与方法、快照语义、节点类型类、场景/组件查询、addComponent、落盘约定 |
 | [UI](sdk/ui.md) | UI 画布与 Widget 节点类字段、`engine.ui`、按钮点击订阅、坐标换算、摇杆示例 |
 | [engine 入口](sdk/engine.md) | 时间、输入、场景、动画、音频、粒子、物理、UI、补间、日志 |
+| [逻辑运行器](sdk/logic.md) | 状态机（事件/黑板/状态订阅）、行为树（动作处理器/三值状态/续行）、通用控制 |
 | [内置组件门面](sdk/components.md) | 刚体、碰撞体、灯光、音源、动画剪辑、骨骼动画（混合/加法层/骨骼/形态键/IK/绑定） |
 | [数学库 math](sdk/math.md) | 向量运算纯函数集、角度工具、常见配方速查 |
 | [补间动画 tween](sdk/tween.md) | `tween` 工厂、链式配置、序列/并行组、31 个缓动、全局控制 |
 | [通用设施](sdk/utils.md) | `Delegate` 委托、`Pool` 对象池、`DataCenter` 数据中心 |
-| [API 参考](sdk/api.md) | 全量 API 自动生成（类型 + JSDoc，随 `tve.d.ts` 同步） |
+| [API 参考](sdk/api.md) | 全量 API 自动生成（类型 + JSDoc + 声明级 doctest 示例，随 `tve.d.ts` 同步） |
 
 ## 许可
 

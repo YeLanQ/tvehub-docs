@@ -15,15 +15,24 @@
 
 ## RigidBody 刚体
 
-```ts
-rb.mode;               // 刚体形态："static" | "kinematic" | "dynamic"
-rb.gravityScale;       // 当前重力缩放
-rb.colliderCount;      // 碰撞体数量
-rb.setGravityScale(0); // 设置重力缩放（0 = 不受重力）
-rb.setLinearVelocity(x, y, z); // 直接设置线速度（m/s）
-rb.getLinearVelocity();        // 读取线速度 → Vec3 | null
-rb.applyImpulse(x, y, z);      // 施加冲量（世界空间，N·s）
-rb.wakeUp();                   // 唤醒
+```ts tve
+import { Component, RigidBody } from "tve";
+
+export default class RbDemo extends Component {
+  rb!: RigidBody; // 组件字段：运行期自动绑定门面
+
+  onFixedUpdate() {
+    const rb = this.rb;
+    void rb.mode;               // 刚体形态："static" | "kinematic" | "dynamic"
+    void rb.gravityScale;       // 当前重力缩放
+    void rb.colliderCount;      // 碰撞体数量
+    rb.setGravityScale(0);      // 设置重力缩放（0 = 不受重力）
+    rb.setLinearVelocity(0, 0, 5); // 直接设置线速度（m/s）
+    void rb.getLinearVelocity();   // 读取线速度 → Vec3 | null
+    rb.applyImpulse(0, 6, 0);   // 施加冲量（世界空间，N·s）
+    rb.wakeUp();                // 唤醒（修改参数后让睡眠中的体立即响应）
+  }
+}
 ```
 
 三形态语义：
@@ -38,12 +47,20 @@ rb.wakeUp();                   // 唤醒
 
 只读信息；形状/表面材质在检查器编辑，运行时不可变。
 
-```ts
-col.shape;        // 命中的碰撞形状："box"|"sphere"|"capsule"|"cylinder"|"convex"
-col.isSensor;     // 是否传感器（只产生触发不产生碰撞响应）
-col.friction;     // 摩擦系数（0..4）
-col.restitution;  // 弹性系数（0..1）
-col.count;        // 物理世界中的碰撞体数量
+```ts tve
+import { Component, Collider } from "tve";
+
+export default class ColDemo extends Component {
+  col!: Collider; // 只读信息；形状/表面材质在检查器编辑，运行时不可变
+
+  onStart() {
+    void this.col.shape;       // 命中的碰撞形状："box"|"sphere"|"capsule"|"cylinder"|"convex"
+    void this.col.isSensor;    // 是否传感器（只产生触发不产生碰撞响应）
+    void this.col.friction;    // 摩擦系数（0..4）
+    void this.col.restitution; // 弹性系数（0..1）
+    void this.col.count;       // 物理世界中的碰撞体数量
+  }
+}
 ```
 
 碰撞回调（`onCollisionEnter/Exit`）前提：本节点挂有碰撞体 + 项目设置启用物理；传感器同样触发回调（只有事件、无碰撞响应）。双方实体各收一次回调（参数为对方 `Entity`）。
@@ -52,45 +69,66 @@ col.count;        // 物理世界中的碰撞体数量
 
 设置写入即时同步到活动灯光对象；类型切换重建灯光。
 
-```ts
-light.enabled;        // 是否启用（禁用 = 灯光对象隐藏）
-light.kind;           // "point" | "directional" | "spot" | "ambient"（可写，写入即重建）
-light.color;          // 光色 0xRRGGBB
-light.intensity;      // 强度
-light.distance;       // 点光/聚光：照射距离（0 = 无限远）
-light.decay;          // 点光/聚光：物理衰减指数
-light.angle;          // 聚光：光束半角（度）
-light.penumbra;       // 聚光：边缘柔和度 0~1
-light.cullingMask;    // 灯光 Culling Mask（只照亮掩码内层；-1 = 全部层）
-light.castShadow;     // 点光/平行光/聚光：投射阴影
-light.shadowStrength; // 阴影浓度 0~1
-light.shadowBias;     // 阴影深度偏移
-light.shadowNormalBias; // 阴影法线偏移（≤0 = 自动按纹素相对化）
-light.shadowNear;     // 阴影近裁剪面
-light.shadowRadius;   // 阴影软化半径（1 = 硬阴影；Soft = 4）
-light.shadowResolution; // 阴影贴图分辨率（0 = 自动：平面 2048 / 点光 1024；512~4096）
-light.shadowType;     // Shadow 类型 "off" | "hard" | "soft"（读写投射开关 + 软化半径）
+```ts tve
+import { Component, Light, tween } from "tve";
+
+export default class LightDemo extends Component {
+  light!: Light; // 灯光门面（getComponent(Light) 或组件字段）
+
+  onStart() {
+    const light = this.light;
+    light.enabled = true;          // 是否启用（禁用 = 灯光对象隐藏）
+    light.kind = "point";          // "point"|"directional"|"spot"|"ambient"（写入即重建）
+    light.color = 0xffaa33;        // 光色 0xRRGGBB
+    light.intensity = 2;           // 强度
+    light.distance = 10;           // 点光/聚光：照射距离（0 = 无限远）
+    light.decay = 2;               // 点光/聚光：物理衰减指数
+    light.angle = 30;              // 聚光：光束半角（度）
+    light.penumbra = 0.4;          // 聚光：边缘柔和度 0~1
+    light.cullingMask = -1;        // 灯光 Culling Mask（只照亮掩码内层；-1 = 全部层）
+    light.castShadow = true;       // 点光/平行光/聚光：投射阴影
+    light.shadowStrength = 0.6;    // 阴影浓度 0~1
+    light.shadowBias = 0.0005;     // 阴影深度偏移
+    light.shadowNormalBias = 0;    // 阴影法线偏移（≤0 = 自动按纹素相对化）
+    light.shadowNear = 0.1;        // 阴影近裁剪面
+    light.shadowRadius = 4;        // 阴影软化半径（1 = 硬阴影；Soft = 4）
+    light.shadowResolution = 1024; // 阴影贴图分辨率（0 = 自动；512~4096）
+    light.shadowType = "soft";     // "off"|"hard"|"soft"（读写投射开关 + 软化半径）
+
+    // 火光呼吸（强度补间循环往返）
+    tween.to(light, { intensity: 3 }, 0.4).yoyo(true).loop(-1).easing("sineInOut");
+  }
+}
 ```
 
 灯光方向 = 节点本地 **-Z**（与相机/粒子发射同约定）。阴影实现细节（贴合范围、分辨率档位）见[编辑器 › 场景编辑 › 阴影](../editor/scene.md)。
 
 ## AudioSource 音源
 
-```ts
-audio.source;      // 音频资产引用（写入即重载）
-audio.autoplay;    // 自动播放
-audio.loop;        // 循环播放
-audio.volume;      // 音量 0..1
-audio.speed;       // 播放倍速 0.1..4
-audio.spatial;     // "2d" 全局 / "3d" 位置音源
-audio.playing;     // 是否正在播放
-audio.paused;      // 是否处于暂停态
-audio.ready;       // 缓冲是否就绪
-audio.play();      // 暂停态续播；停止/播完态从头播
-audio.stop();      // 停止并回到起点
-audio.pause();     // 暂停（保留进度）
-audio.resume();    // 从暂停处继续
-audio.setVolume(0.5); // 运行时音量 0~1
+```ts tve
+import { Component, AudioSource } from "tve";
+
+export default class AudioDemo extends Component {
+  audio!: AudioSource;
+
+  onStart() {
+    const a = this.audio;
+    a.source = "assets/bgm.mp3"; // 音频资产引用（写入即重载）
+    a.autoplay = true;           // 自动播放
+    a.loop = true;               // 循环播放
+    a.volume = 0.8;              // 音量 0..1
+    a.speed = 1;                 // 播放倍速 0.1..4
+    a.spatial = "2d";            // "2d" 全局 / "3d" 位置音源
+    void a.playing;              // 是否正在播放
+    void a.paused;               // 是否处于暂停态
+    void a.ready;                // 缓冲是否就绪
+    a.play();                    // 暂停态续播；停止/播完态从头播
+    a.setVolume(0.5);            // 运行时音量 0~1
+    // a.stop();                 // 停止并回到起点
+    // a.pause();                // 暂停（保留进度）
+    // a.resume();               // 从暂停处继续
+  }
+}
 ```
 
 要点：
@@ -104,15 +142,26 @@ audio.setVolume(0.5); // 运行时音量 0~1
 
 绑定 `.anim` 资产的关键帧动画（剪辑经[动画编辑器](../editor/animation.md)制作）。
 
-```ts
-clip.clip;         // .anim 资产相对路径（写入即重载剪辑；空串解绑）
-clip.duration;     // 剪辑时长（秒；未加载 0）
-clip.time;         // 播放进度（秒；写入即跳转采样）
-clip.speed;        // 播放速度倍率（>0）
-clip.loop;         // 循环播放
-clip.autoplay;     // 自动播放（加载完成后起播）
-clip.playing; clip.paused;
-clip.play(); clip.pause(); clip.resume(); clip.stop(); // stop 回初始姿势
+```ts tve
+import { Component, AnimationClip } from "tve";
+
+export default class ClipDemo extends Component {
+  clip!: AnimationClip; // 绑定 .anim 资产的关键帧动画（动画编辑器制作）
+
+  onStart() {
+    const c = this.clip;
+    c.clip = "assets/anims/door.anim"; // .anim 资产相对路径（写入即重载；空串解绑）
+    void c.duration;                   // 剪辑时长（秒；未加载 0）
+    c.time = 0.5;                      // 播放进度（秒；写入即跳转采样）
+    c.speed = 1;                       // 播放速度倍率（>0）
+    c.loop = false;                    // 循环播放
+    c.autoplay = true;                 // 自动播放（加载完成后起播）
+    void c.playing; void c.paused;
+    c.play();
+    // c.pause(); c.resume();
+    // c.stop(); // 回初始姿势
+  }
+}
 ```
 
 通道只覆盖剪辑中存在的属性（如剪辑只 K 了 `position.x` 就只驱动 x，其余轴不动）；区间外钳制到端点值。同一节点可挂多个动画剪辑组件（`getComponent` 取首个），配合权重思路或分段剪辑分别播放。
@@ -121,49 +170,64 @@ clip.play(); clip.pause(); clip.resume(); clip.stop(); // stop 回初始姿势
 
 仅模型网格节点拥有绑定。支持单剪辑播放与**动画图**（状态机）两种模式。
 
-```ts
-sk.clips;          // 模型内嵌剪辑名列表
-sk.currentClip;    // 当前播放剪辑名（图模式为当前状态绑定剪辑；未播放 null）
-sk.playing;
-sk.clip;           // 当前剪辑名（缺省取首个；写入即切换播放，图模式为目标状态名）
-sk.speed;          // 播放速度倍率
-sk.loop;           // "loop" | "once" | "pingpong"
-sk.autoplay;
-sk.hasGraph;       // 是否处于动画图模式
-sk.graph;          // 动画图活对象（entry/states/transitions/params 可直接改写，下一帧生效；无图 null）
+```ts tve
+import { Component, AnimGraphDef, SkeletalAnimation } from "tve";
 
-sk.play("Run");    // 单剪辑：剪辑名（缺省首个）；图模式：目标状态名（缺省回入口）
-sk.pause(); sk.resume(); sk.stop();
+export default class SkelDemo extends Component {
+  sk!: SkeletalAnimation; // 仅模型网格节点拥有绑定
 
-sk.getParam("speedX");        // 图参数读取（无图/未声明 null）
-sk.setParam("speedX", 1.5);   // 图参数写入（布尔/数值；条件评估每帧读取）
-sk.ensureGraph(def);          // 创建/替换动画图（非法项按引擎规则收敛剔除；成功 true）
-sk.removeGraph();             // 移除动画图（回单剪辑语义）
-sk.addState({ name, clip });  // 新增图状态（重名拒绝）
-sk.removeState("Idle");       // 移除状态（连带剔除涉及它的过渡）
-sk.addTransition({ from, to, duration, exitTime, conditions });
-sk.removeTransition(id);
+  onStart() {
+    const sk = this.sk;
+    void sk.clips;          // 模型内嵌剪辑名列表
+    void sk.currentClip;    // 当前播放剪辑名（图模式为当前状态绑定剪辑；未播放 null）
+    void sk.playing;
+    sk.clip = "Run";        // 当前剪辑名（缺省取首个；写入即切换播放，图模式为目标状态名）
+    sk.speed = 1;           // 播放速度倍率
+    sk.loop = "loop";       // "loop" | "once" | "pingpong"
+    sk.autoplay = true;
+    void sk.hasGraph;       // 是否处于动画图模式
+    void sk.graph;          // 动画图活对象（可改写，下一帧生效；无图 null）
+
+    sk.play("Run");         // 单剪辑：剪辑名（缺省首个）；图模式：目标状态名（缺省回入口）
+    // sk.pause(); sk.resume(); sk.stop();
+
+    void sk.getParam("speedX");       // 图参数读取（无图/未声明 null）
+    sk.setParam("speedX", 1.5);       // 图参数写入（条件评估每帧读取）
+    // sk.ensureGraph(def);           // 创建/替换动画图（见下节）
+    // sk.removeGraph();              // 移除动画图（回单剪辑语义）
+    // sk.addState({ name, clip });   // 新增图状态（重名拒绝）
+    // sk.removeState("Idle");        // 移除状态（连带剔除涉及它的过渡）
+    // sk.addTransition({ from, to, duration, exitTime, conditions });
+    // sk.removeTransition(id);
+  }
+}
 ```
 
 ### 动画图定义
 
-```ts
-import type { AnimGraphDef } from "tve";
+```ts tve
+import { Component, AnimGraphDef, SkeletalAnimation } from "tve";
 
-const graph: AnimGraphDef = {
-  entry: "idle",                    // 入口状态（缺省首个状态）
-  params: { speedX: 0 },            // 参数表（数值或布尔；条件评估的输入）
-  states: [
-    { name: "idle", clip: "Idle", speed: 1, loop: "loop" },  // clip 须为模型内嵌剪辑名
-    { name: "run", clip: "Run" },
-  ],
-  transitions: [
-    { from: "idle", to: "run", duration: 0.25, exitTime: 0,
-      conditions: [{ param: "speedX", op: ">", value: 0.1 }] },
-  ],
-};
+export default class GraphDemo extends Component {
+  sk!: SkeletalAnimation;
 
-sk.ensureGraph(graph);
+  onStart() {
+    const graph: AnimGraphDef = {
+      entry: "idle",                    // 入口状态（缺省首个状态）
+      params: { speedX: 0 },            // 参数表（数值或布尔；条件评估的输入）
+      states: [
+        { name: "idle", clip: "Idle", speed: 1, loop: "loop" },  // clip 须为模型内嵌剪辑名
+        { name: "run", clip: "Run" },
+      ],
+      transitions: [
+        { from: "idle", to: "run", duration: 0.25, exitTime: 0,
+          conditions: [{ param: "speedX", op: ">", value: 0.1 }] },
+      ],
+    };
+
+    this.sk.ensureGraph(graph);
+  }
+}
 ```
 
 条件操作符：`> < >= <= == !=`；布尔参数按 0/1 参与数值比较。过渡缺省交叉淡化 0.25 秒；`exitTime` 为归一化退出时间 0..1（>0 表示源状态播放到该进度才允许过渡）。
@@ -179,57 +243,69 @@ sk.ensureGraph(graph);
 
 对应 three 官网 `animation/skinning` 系列示例（blending / morph / additive_blending / ik）的完整能力面。除 `anim`/`animGraph` 设置外全部为**运行时控制，不写入场景数据**。
 
-```ts
-// —— 动作级：权重混合 / 淡入淡出（blending 示例）——
-sk.setWeight("Walk", 0.6);        // 动作权重（确保在播；0 即静默层）
-sk.getWeight("Walk");             // 当前有效权重（含淡入淡出实时值）
-sk.fadeIn("Run", 0.25);           // 权重 0→1 淡入
-sk.fadeOut("Idle", 0.25);         // 权重→0 淡出（动作本身不停止）
-sk.crossFade("Walk", "Run", 0.35, true); // warp=true 自动对齐两动作相位
-sk.setActionSpeed("Run", 1.2);    // 单动作速度（与 globalSpeed 相乘）
-sk.setActionLoop("Jump", "once"); // "loop"|"once"|"pingpong"（once 定格末帧）
-sk.stopAction("Walk");            // 停单个动作（不影响其他混合层）
-sk.globalSpeed(0.5);              // 全局播放速度（mixer 速度）
-sk.playOneShot("Wave", 0.25);     // 一次性动作：定格末帧后自动淡回基础动作
-sk.onFinished(({ clip }) => {});  // 动作播完事件（返回注销函数）
-sk.onLoop(({ clip }) => {});      // 动作循环事件
+```ts tve
+import { Component, SkeletalAnimation } from "tve";
 
-// —— 加法层（additive_blending 示例）——
-sk.playAdditive("SneakPose", 0.7); // 惰性 makeClipAdditive 后以差值叠加在基础动作上
-sk.stopAdditive("SneakPose");
+export default class SkinControl extends Component {
+  sk!: SkeletalAnimation;
 
-// —— 骨骼级 ——
-sk.skinInfo;                      // {boneCount, boneNames, morphMeshes}
-sk.bones;                         // 骨骼名列表
-sk.boneHierarchy;                 // [{name, parent, children}]
-sk.getBoneTransform("Head_4");    // {position, rotation(度), scale}
-sk.setBoneRotation("Head_4", 0, 25, 0);   // 度制欧拉
-sk.setBonePosition("Head_4", 0, 0.1, 0);
-sk.setBoneScale("Head_4", 1, 1, 1);
-sk.resetBone("Head_4");           // 复位单骨（加载姿势快照）
-sk.resetPose();                   // 复位全部骨骼
-sk.getBoneWorldPosition("Head_4"); // 世界坐标（瞄准/挂点参考）
+  onStart() {
+    const sk = this.sk;
+    // —— 动作级：权重混合 / 淡入淡出（blending 示例）——
+    sk.setWeight("Walk", 0.6);        // 动作权重（确保在播；0 即静默层）
+    void sk.getWeight("Walk");        // 当前有效权重（含淡入淡出实时值）
+    sk.fadeIn("Run", 0.25);           // 权重 0→1 淡入
+    sk.fadeOut("Idle", 0.25);         // 权重→0 淡出（动作本身不停止）
+    sk.crossFade("Walk", "Run", 0.35, true); // warp=true 自动对齐两动作相位
+    sk.setActionSpeed("Run", 1.2);    // 单动作速度（与 globalSpeed 相乘）
+    sk.setActionLoop("Jump", "once"); // "loop"|"once"|"pingpong"（once 定格末帧）
+    sk.stopAction("Walk");            // 停单个动作（不影响其他混合层）
+    sk.globalSpeed(0.5);              // 全局播放速度（mixer 速度）
+    sk.playOneShot("Wave", 0.25);     // 一次性动作：定格末帧后自动淡回基础动作
+    const off1 = sk.onFinished(({ clip }) => { void clip; }); // 动作播完事件
+    const off2 = sk.onLoop(({ clip }) => { void clip; });     // 动作循环事件
+    void off1; void off2;
 
-// —— 形态键（morph 示例）——
-sk.morphs;                        // [{mesh, targets}]
-sk.setMorphWeight("", "Angry", 0.8); // mesh 传 "" 取首个含该目标的网格
-sk.getMorphWeight("Head_4", "Angry");
+    // —— 加法层（additive_blending 示例）——
+    sk.playAdditive("SneakPose", 0.7); // 惰性 makeClipAdditive 后以差值叠加在基础动作上
+    sk.stopAdditive("SneakPose");
 
-// —— IK（skinning_ik 示例，CCD 求解；每帧在动画之后求解）——
-const id = sk.addIK({
-  name: "左手",
-  effector: "hand_l",             // 末端效应器骨骼名
-  links: [                        // 关节链：从效应器父级向根方向
-    { bone: "lowerarm_l", rotationMin: [0, -90, -30], rotationMax: [15, -60, 0] },
-    { bone: "Upperarm_l" },
-  ],
-  iteration: 3,
-});
-sk.setIKTargetPosition(id, 0.3, 1.2, 0.4); // 目标点（模型根局部空间）
-sk.getIKTargetPosition(id);       // 目标点读取
-sk.setIKEnabled(id, false);       // 启停
-sk.removeIK(id);
-sk.iks;                           // [{id, name, effector, enabled}]
+    // —— 骨骼级 ——
+    void sk.skinInfo;                      // {boneCount, boneNames, morphMeshes}
+    void sk.bones;                         // 骨骼名列表
+    void sk.boneHierarchy;                 // [{name, parent, children}]
+    void sk.getBoneTransform("Head_4");    // {position, rotation(度), scale}
+    sk.setBoneRotation("Head_4", 0, 25, 0); // 度制欧拉
+    sk.setBonePosition("Head_4", 0, 0.1, 0);
+    sk.setBoneScale("Head_4", 1, 1, 1);
+    sk.resetBone("Head_4");                // 复位单骨（加载姿势快照）
+    sk.resetPose();                        // 复位全部骨骼
+    void sk.getBoneWorldPosition("Head_4"); // 世界坐标（瞄准/挂点参考）
+
+    // —— 形态键（morph 示例）——
+    void sk.morphs;                           // [{mesh, targets}]
+    sk.setMorphWeight("", "Angry", 0.8);      // mesh 传 "" 取首个含该目标的网格
+    void sk.getMorphWeight("Head_4", "Angry");
+
+    // —— IK（CCD 求解；每帧在动画之后求解）——
+    const id = sk.addIK({
+      name: "左手",
+      effector: "hand_l",             // 末端效应器骨骼名
+      links: [                        // 关节链：从效应器父级向根方向
+        { bone: "lowerarm_l", rotationMin: [0, -90, -30], rotationMax: [15, -60, 0] },
+        { bone: "Upperarm_l" },
+      ],
+      iteration: 3,
+    });
+    if (id) {
+      sk.setIKTargetPosition(id, 0.3, 1.2, 0.4); // 目标点（模型根局部空间）
+      void sk.getIKTargetPosition(id);
+      sk.setIKEnabled(id, false);     // 启停
+      // sk.removeIK(id);
+    }
+    void sk.iks;                      // [{id, name, effector, enabled}]
+  }
+}
 ```
 
 权重层语义要点：
@@ -244,12 +320,24 @@ sk.iks;                           // [{id, name, effector, enabled}]
 
 把场景节点绑到骨骼或 IK 目标上，每帧跟随（对应官方 ik 示例中目标点与挂体的跟随语义）：
 
-```ts
-sk.attachToBone(box, "hand_r");          // Entity 或节点 id；骨骼名（IK id / IK 名也可）
-sk.attachToBone(box, "hand_r", { keepOffset: false }); // 对象原点对齐骨骼原点
-sk.attachToBone(box, "ik1");             // 绑到 IK 目标点（目标移动 → 物体跟随）
-sk.detach(box);                          // 解除绑定
-sk.attachments;                          // [{node, bone, syncRotation, syncScale, keepOffset}]
+```ts tve
+import { Component, property, SkeletalAnimation, MeshNode } from "tve";
+
+export default class AttachDemo extends Component {
+  sk!: SkeletalAnimation;
+
+  @property({ type: MeshNode, label: "武器（模型子树外的节点）" })
+  sword: MeshNode | null = null;
+
+  onStart() {
+    if (!this.sword) return;
+    this.sk.attachToBone(this.sword, "hand_r");  // Entity 或节点 id；骨骼名（IK id/名也可）
+    // this.sk.attachToBone(this.sword, "hand_r", { keepOffset: false }); // 原点对齐骨骼原点
+    // this.sk.attachToBone(this.sword, "ik1");  // 绑到 IK 目标点（目标移动 → 物体跟随）
+    // this.sk.detach(this.sword);               // 解除绑定
+    void this.sk.attachments; // [{node, bone, syncRotation, syncScale, keepOffset}]
+  }
+}
 ```
 
 选项（`BoneAttachOptions`）：
@@ -266,7 +354,7 @@ sk.attachments;                          // [{node, bone, syncRotation, syncScal
 
 **示例：表情一次性播放，播完自动回落（morph 模式）**
 
-```ts
+```ts tve
 import { Component, property, engine, SkeletalAnimation } from "tve";
 
 export default class Emotes extends Component {
@@ -286,7 +374,7 @@ export default class Emotes extends Component {
 
 **示例：手臂 IK 跟随目标点（ik 模式）**
 
-```ts
+```ts tve
 import { Component, property, SkeletalAnimation } from "tve";
 
 export default class HandIK extends Component {
@@ -331,11 +419,17 @@ export default class HandIK extends Component {
 
 示例：
 
-```ts
-// 爆炸点闪光
-const light = entity.addComponent("light", { kind: "point", color: 0xffaa33, intensity: 5, distance: 10 });
-tween.value(5, 0, 0.4).onUpdate((v) => { if (light) light.intensity = v; });
+```ts tve
+import { Component, tween, Light, AudioSource } from "tve";
 
-// 拾取音效
-entity.addComponent("audioSource", { source: "assets/audio/pickup.wav", autoplay: true, spatial: "2d" });
+export default class SpawnFx extends Component {
+  onStart() {
+    // 爆炸点闪光（动态灯光 + 强度衰减）
+    const light = this.entity.addComponent(Light, { kind: "point", color: 0xffaa33, intensity: 5, distance: 10 });
+    tween.value(5, 0, 0.4).onUpdate((v) => { if (light) light.intensity = v; });
+
+    // 拾取音效
+    this.entity.addComponent(AudioSource, { source: "assets/audio/pickup.wav", autoplay: true, spatial: "2d" });
+  }
+}
 ```

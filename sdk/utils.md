@@ -10,8 +10,8 @@
 
 多播事件容器（参考 C# 多播委托），组件间解耦通信的标准设施。发布方持有 Delegate，订阅方注册回调；两边都不需要互相 import 运行时（配合 `import type` 只引类型）。
 
-```ts
-import { Delegate, Component } from "tve";
+```ts tve
+import { Delegate, Component, engine } from "tve";
 
 export class GameEvents extends Component {
   static readonly onScore = new Delegate<(delta: number) => void>();
@@ -44,7 +44,9 @@ GameEvents.onScore.invoke(10);
 
 入口脚本（或任意常驻组件）用静态 Delegate 定义游戏事件，其他组件按需订阅：
 
-```ts
+入口脚本（或任意常驻组件）用静态 Delegate 定义游戏事件，其他组件按需订阅。实际项目中通常拆成三个文件（`GameEvents.ts` / `Enemy.ts` / `ScoreBoard.ts`），跨文件用 `import type` 只引类型、无运行时依赖；下例合并在一个块内便于验证：
+
+```ts tve
 // GameEvents.ts —— 事件定义（挂在入口脚本上常驻）
 import { Delegate, Component } from "tve";
 
@@ -53,29 +55,29 @@ export default class GameEvents extends Component {
   static readonly onGameOver = new Delegate<() => void>();
 }
 
-// Enemy.ts —— 发布方
-import type GameEvents from "./GameEvents";   // type-only，无运行时依赖
-export default class Enemy extends Component {
+// Enemy.ts —— 发布方（跨文件时：import type GameEvents from "./GameEvents"）
+class Enemy extends Component {
   die() {
     GameEvents.onEnemyDead.invoke(this.entity.position);
   }
 }
 
 // ScoreBoard.ts —— 订阅方
-import type GameEvents from "./GameEvents";
-export default class ScoreBoard extends Component {
-  private token?: ReturnType<GameEvents["onEnemyDead"]["add"]>;
+class ScoreBoard extends Component {
+  private token?: ReturnType<(typeof GameEvents)["onEnemyDead"]["add"]>;
   onEnable() { this.token = GameEvents.onEnemyDead.add(() => this.addScore()); }
   onDestroy() { if (this.token) GameEvents.onEnemyDead.remove(this.token); }
   private addScore() { /* ... */ }
 }
+
+void Enemy; void ScoreBoard;
 ```
 
 ## Pool 对象池
 
 复用高频小对象，避免频繁创建/销毁带来的卡顿与 GC 压力。典型用途：子弹、特效、飘字、临时列表。
 
-```ts
+```ts tve
 import { Pool, Component } from "tve";
 
 interface Bullet { active: boolean; x: number; y: number; }
@@ -123,7 +125,7 @@ export default class Gun extends Component {
 
 跨组件共享的命名数据仓库，内置**热/冷分解**：热数据（活动工作集）即时读写；闲置/超量的数据自动降冷为冻结快照（深拷贝隔离），再次访问自动回温。
 
-```ts
+```ts tve
 import { dataCenter, Component } from "tve";
 
 export default class Game extends Component {
@@ -131,7 +133,7 @@ export default class Game extends Component {
     dataCenter.set("score", 0);            // 写即热
   }
   onEnemyKilled() {
-    const score = dataCenter.get<number>("score", 0);
+    const score = dataCenter.get<number>("score") ?? 0;
     dataCenter.set("score", score + 10);   // 其他组件可随时读取
   }
   onDestroy() {
@@ -152,18 +154,18 @@ export default class Game extends Component {
 
 ### API
 
-```ts
-dataCenter.set(key, value);      // 写入（写即热；同名冷数据快照被覆盖）
-dataCenter.get<number>(key, 0);  // 读取（未命中返回 defaultValue）
-dataCenter.has(key);             // 是否存在（热或冷）
-dataCenter.delete(key);          // 删除（热/冷一并移除）。返回是否存在
-dataCenter.keys();               // 全部键名（热 + 冷）
-dataCenter.hotKeys();            // 热数据键名
-dataCenter.coldKeys();           // 冷数据键名
-dataCenter.warm(key);            // 手动回温（返回是否存在）
-dataCenter.cool(key);            // 手动降冷（返回是否降冷）
-dataCenter.sweep();              // 手动清扫（返回降冷条数）
-dataCenter.stats();              // { hot, cold, sweeps, promotions, hits, misses }
+```ts tve
+import { dataCenter } from "tve";
+
+dataCenter.set("score", 10);           // 写入（写即热；同名冷数据快照被覆盖）
+dataCenter.get<number>("score", 0);    // => 10（未命中返回 defaultValue）
+dataCenter.has("score");               // => true（热或冷）
+dataCenter.delete("score");            // => true（热/冷一并移除）
+dataCenter.keys();                     // => []（全部键名：热 + 冷）
+dataCenter.hotKeys();                  // 热数据键名
+dataCenter.coldKeys();                 // 冷数据键名
+// warm(key) 手动回温 / cool(key) 手动降冷 / sweep() 手动清扫（返回降冷条数）
+// stats() → { hot, cold, sweeps, promotions, hits, misses }
 dataCenter.configure({ hotLimit: 128, coldTtl: 60000, autoSweep: true, sweepInterval: 5000 });
 ```
 

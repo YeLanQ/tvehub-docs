@@ -65,3 +65,35 @@
 - 报错隔离：单个脚本抛错只停用该实例，不影响其他脚本（见 [SDK 总览 › 执行顺序与错误隔离](../sdk/overview.md)）；
 - 预览页签的 console 转发（`[预览]` 前缀）可看到运行时全部输出；
 - 想断点调试可用「在浏览器打开」预览页，用浏览器 DevTools 直接调试编译产物。
+
+## 最小闭环走查（新建 → 挂载 → 预览）
+
+1. 资产面板 `src/` 右键「新建脚本」，命名 `Spin.ts`（类名自动注入为 `Spin`）；
+2. 把模板改成下面这样（**此代码块随文档测试套件逐块验证**，可放心整段复制）：
+
+   ```ts tve
+   import { Component, property, engine } from "tve";
+
+   export default class Spin extends Component {
+     @property({ label: "速度（度/秒）", min: 0 })
+     speed = 90;
+
+     onStart() {
+       engine.log("挂载于", this.entity.name);
+     }
+
+     onUpdate(delta: number) {
+       this.entity.rotate(0, this.speed * delta, 0);
+     }
+   }
+   ```
+
+3. Ctrl+S 保存（状态栏「已保存 · 编译通过」）；
+4. 选中场景里的网格节点，检查器「添加组件 > 脚本」选 `Spin`，卡片里调「速度」；
+5. 工具栏「预览」运行——节点开始自转，控制台出现挂载日志。
+
+## 去哪里查 API
+
+- [SDK 总览](../sdk/overview.md)：生命周期、每帧调度顺序、约定速查；
+- [API 参考](../sdk/api.md)：全量声明 + **每个声明的可复制示例**（示例代码块随文档测试套件验证，复制即可用）；
+- 专题页：[装饰器](../sdk/decorators.md) / [实体与查询](../sdk/entity.md) / [engine 入口](../sdk/engine.md) / [逻辑运行器](../sdk/logic.md) / [内置组件门面](../sdk/components.md) / [UI](../sdk/ui.md) / [数学库](../sdk/math.md) / [补间动画](../sdk/tween.md) / [通用设施](../sdk/utils.md)。

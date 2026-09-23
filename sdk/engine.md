@@ -4,21 +4,30 @@
 
 ## 时间：engine.time
 
-```ts
+```ts tve
+import { engine } from "tve";
+
 engine.time.delta;    // 距上一帧的秒数（与 onUpdate(delta) 的参数相同）
 engine.time.elapsed;  // 运行期累计秒数
-engine.time.frame;    // 帧序号（从 1 开始）
+engine.time.frame;    // 帧序号（从 1 开始；无宿主时 0）
 ```
 
 典型用法：把「每 N 秒执行一次」改成基于累计时间的调度，避免 setTimeout 与帧循环脱节：
 
-```ts
-private next = 0;
-onUpdate() {
-  if (engine.time.elapsed >= this.next) {
-    this.next += 2;        // 每 2 秒
-    this.spawn();
+```ts tve
+import { Component, engine } from "tve";
+
+export default class Spawner extends Component {
+  private next = 0;
+
+  onUpdate() {
+    if (engine.time.elapsed >= this.next) {
+      this.next += 2;        // 每 2 秒
+      this.spawn();
+    }
   }
+
+  spawn() { /* ... */ }
 }
 ```
 
@@ -26,46 +35,67 @@ onUpdate() {
 
 按键用 `KeyboardEvent.code`（如 `"KeyW"`、`"Space"`、`"ArrowLeft"`、`"Digit1"`、`"ShiftLeft"`），支持任意多键同时按住。指针支持**多点触控**：每个触点按 `pointerId` 区分（从按下到抬起恒定；鼠标也是触点之一），坐标为**画布内 CSS 像素**（左上角原点），与 `engine.ui.screenToUi` 的入参同一空间。
 
-```ts
-engine.input.isKeyDown("KeyW");            // 按键当前是否按下（轮询式，多键组合直接连查）
-engine.input.keys;                          // 当前按下的全部按键（Set 实时视图）
-const off = engine.input.onKeyDown((key) => { /* 按下（每键各触发一次） */ });
-const off2 = engine.input.onKeyUp(handler);
-engine.input.pointer;                       // 主指针 { x, y, down, pointerId }（跟随最后活跃触点）
-engine.input.pointers;                      // 按下中的全部触点（Map<pointerId, { x, y, down, pointerId }>）
-engine.input.getPointer(pointerId);         // 按 id 查触点（未按下返回 null）
-engine.input.onPointerDown(handler);        // handler: (pointer) => void，每触点各触发
-engine.input.onPointerUp(handler);
-engine.input.onPointerCancel(handler);      // 系统抢占（浏览器手势等）：触点被强制移除，不会再来 up
-engine.input.onPointerMove(handler);
+```ts tve
+import { engine, PointerState } from "tve";
+
+// 轮询：按键当前是否按下（多键组合直接连查）
+engine.input.isKeyDown("KeyW");   // => false（无宿主环境实测）
+engine.input.keys.size;           // => 0（当前按下的全部按键，Set 实时视图）
+
+// 订阅（均返回取消订阅函数；onDisable/onDestroy 中调用以免悬挂）
+const off = engine.input.onKeyDown((key: string) => { /* 按下（每键各触发一次） */ });
+const off2 = engine.input.onKeyUp((key: string) => {});
+off(); off2();
+
+// 主指针（跟随最后活跃触点）与多点触控表
+void engine.input.pointer;                 // { x, y, down, pointerId }
+void engine.input.pointers;                // Map<pointerId, PointerState>（按下中的触点）
+void engine.input.getPointer(0);           // 按 id 查触点（未按下 null）
+const onP = (handler: (p: PointerState) => void) => {
+  const offP = engine.input.onPointerDown(handler); // 每触点各触发
+  return offP;
+};
+void onP;
+// 另有 onPointerUp / onPointerCancel / onPointerMove（参数同 PointerState）
 ```
 
 订阅函数均返回取消订阅函数；请在 `onDisable`/`onDestroy` 中调用以免悬挂。
 
-```ts
-// WASD 轮询移动（每帧查询；多个 isKeyDown 组合即多键输入）
-onUpdate(delta: number) {
-  const x = (engine.input.isKeyDown("KeyD") ? 1 : 0) - (engine.input.isKeyDown("KeyA") ? 1 : 0);
-  const z = (engine.input.isKeyDown("KeyS") ? 1 : 0) - (engine.input.isKeyDown("KeyW") ? 1 : 0);
-  if (x || z) this.entity.translate(x * this.speed * delta, 0, z * this.speed * delta);
-}
+```ts tve
+import { Component, engine, property } from "tve";
 
-// 事件式点击（一次性交互）
-private off?: () => void;
-onEnable() { this.off = engine.input.onPointerDown((p) => this.tryPick(p.x, p.y)); }
-onDisable() { this.off?.(); }
+export default class PlayerInput extends Component {
+  @property({ label: "速度（米/秒）", min: 0 })
+  speed = 4;
 
-// 双指捏合缩放（多点触控；pointers 里始终是按下中的触点）
-onUpdate() {
-  const ps = engine.input.pointers;
-  if (ps.size !== 2) {
-    this.prevDist = 0;             // 手指离开后重置，下次捏合从当前距离起算
-    return;
+  private off?: () => void;
+  private prevDist = 0;
+  @property({ label: "缩放倍率", min: 0.1 })
+  zoom = 1;
+
+  // WASD 轮询移动（每帧查询；多个 isKeyDown 组合即多键输入）
+  onUpdate(delta: number) {
+    const x = (engine.input.isKeyDown("KeyD") ? 1 : 0) - (engine.input.isKeyDown("KeyA") ? 1 : 0);
+    const z = (engine.input.isKeyDown("KeyS") ? 1 : 0) - (engine.input.isKeyDown("KeyW") ? 1 : 0);
+    if (x || z) this.entity.translate(x * this.speed * delta, 0, z * this.speed * delta);
+
+    // 双指捏合缩放（pointers 里始终是按下中的触点）
+    const ps = engine.input.pointers;
+    if (ps.size !== 2) {
+      this.prevDist = 0;        // 手指离开后重置，下次捏合从当前距离起算
+      return;
+    }
+    const [a, b] = [...ps.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    if (this.prevDist > 0) this.zoom *= dist / this.prevDist;
+    this.prevDist = dist;
   }
-  const [a, b] = [...ps.values()];
-  const dist = Math.hypot(a.x - b.x, a.y - b.y);
-  if (this.prevDist > 0) this.zoom *= dist / this.prevDist;
-  this.prevDist = dist;
+
+  // 事件式点击（一次性交互）
+  onEnable() { this.off = engine.input.onPointerDown((p) => this.tryPick(p.x, p.y)); }
+  onDisable() { this.off?.(); }
+
+  tryPick(x: number, y: number) { void x; void y; }
 }
 ```
 
@@ -79,12 +109,22 @@ onUpdate() {
 
 按实体寻址；仅模型网格节点（模型内嵌动画）有效。
 
-```ts
-engine.animation.play(entity, "Run"); // 单剪辑模式 clip = 剪辑名（缺省取首个）；
-                                      // 动画图模式 clip = 目标状态名
-engine.animation.stop(entity);        // 停止并回初始姿势
-engine.animation.pause(entity);       // 暂停（保留进度）
-engine.animation.resume(entity);      // 继续
+```ts tve
+import { Component, engine, property, MeshNode } from "tve";
+
+export default class AnimRunner extends Component {
+  @property({ type: MeshNode, label: "角色（模型网格）" })
+  actor: MeshNode | null = null;
+
+  onStart() {
+    if (!this.actor) return;
+    engine.animation.play(this.actor, "Run"); // 单剪辑模式 clip = 剪辑名（缺省取首个）；
+                                              // 动画图模式 clip = 目标状态名
+    // engine.animation.stop(this.actor);     // 停止并回初始姿势
+    // engine.animation.pause(this.actor);    // 暂停（保留进度）
+    // engine.animation.resume(this.actor);   // 继续
+  }
+}
 ```
 
 更细的控制（进度、倍速、循环模式、动画图参数、蒙皮/IK）见[内置组件门面](components.md)的 `SkeletalAnimation`；关键帧 `.anim` 剪辑用 `AnimationClip` 门面（两者互不相关）。
@@ -93,26 +133,49 @@ engine.animation.resume(entity);      // 继续
 
 按实体寻址；音源节点与挂「音源」组件的节点有效，实体上多个音源时寻址首个（需要精确控制某个音源用 `getComponent(AudioSource)`）。
 
-```ts
-engine.audio.play(entity);            // 暂停态续播；停止/播完态从头播
-engine.audio.stop(entity);
-engine.audio.pause(entity);
-engine.audio.resume(entity);
-engine.audio.setVolume(entity, 0.5);  // 运行时音量 0~1（不落盘）
+```ts tve
+import { Component, engine, property, MeshNode } from "tve";
+
+export default class BgmControl extends Component {
+  @property({ type: MeshNode, label: "音源节点" })
+  source: MeshNode | null = null;
+
+  onStart() {
+    if (!this.source) return;
+    engine.audio.play(this.source);            // 暂停态续播；停止/播完态从头播
+    engine.audio.setVolume(this.source, 0.5);  // 运行时音量 0~1（不落盘）
+    // engine.audio.stop(this.source);
+    // engine.audio.pause(this.source);
+    // engine.audio.resume(this.source);
+  }
+}
 ```
 
 ## 粒子：engine.particles
 
 按实体寻址；仅粒子系统节点有效。拿到 `ParticleSystemNode` 实体时也可直接调用其同名方法/属性（见 [实体与查询](entity.md)）。
 
-```ts
-engine.particles.play(entity);       // 暂停态续播；停止/播完态从头开始
-engine.particles.pause(entity);
-engine.particles.stop(entity);       // 停止发射，存活粒子自然消亡
-engine.particles.restart(entity);    // 清空并从头开始
-engine.particles.clear(entity);      // 立即清空
-engine.particles.stateOf(entity);    // { playing, paused, finished, alive, time } | null
-engine.particles.setSettings(entity, { emissionRate: 50, startColor: 0x66ccff }); // 运行态合并（不落盘）
+```ts tve
+import { Component, engine, property, ParticleSystemNode } from "tve";
+
+export default class FxRunner extends Component {
+  @property({ type: ParticleSystemNode, label: "烟尘" })
+  fx: ParticleSystemNode | null = null;
+
+  onStart() {
+    if (!this.fx) return;
+    engine.particles.play(this.fx);       // 暂停态续播；停止/播完态从头开始
+    // engine.particles.pause(this.fx);
+    // engine.particles.stop(this.fx);    // 停止发射，存活粒子自然消亡
+    // engine.particles.restart(this.fx); // 清空并从头开始
+    // engine.particles.clear(this.fx);   // 立即清空
+
+    void engine.particles.stateOf(this.fx); // { playing, paused, finished, alive, time } | null
+
+    // 运行态合并发射设置（子集；不落盘）
+    engine.particles.setSettings(this.fx, { emissionRate: 50, startColor: 0x66ccff });
+  }
+}
 ```
 
 `stateOf` 的 `finished` 在「非循环系统发射完毕且粒子全部消亡」时为 true，配合 `restart()` 可做「播完一轮再来一轮」的节奏控制。
@@ -121,22 +184,24 @@ engine.particles.setSettings(entity, { emissionRate: 50, startColor: 0x66ccff })
 
 按实体寻址；仅挂了「刚体」组件的节点有效（需要项目设置启用物理）。
 
-```ts
-engine.physics.applyImpulse(entity, x, y, z);   // 施加冲量（世界空间，N·s；动力学体）
-engine.physics.applyForce(entity, x, y, z);     // 施加持续力（世界空间，N；每帧调用生效）
-engine.physics.setLinearVelocity(entity, x, y, z); // 直接设置线速度（m/s）
-engine.physics.setAngularVelocity(entity, x, y, z); // 直接设置角速度（rad/s）
-engine.physics.getLinearVelocity(entity);       // 读取线速度（未绑定返回 null）
-engine.physics.bodyInfo(entity);                // { mode, gravityScale, colliderCount } | null
-engine.physics.setGravityScale(entity, 0);      // 重力缩放（0 = 不受重力）
-engine.physics.wakeUp(entity);                  // 唤醒（修改参数后让睡眠中的体立即响应）
-engine.physics.setGravity(0, -9.81, 0);         // 世界重力（影响全部动力学体）
-engine.physics.castRay({                        // 射线投射（世界空间；返回按距离升序的命中列表）
-  origin: { x: 0, y: 10, z: 0 },                //   起点（世界空间）
-  direction: { x: 0, y: -1, z: 0 },             //   方向（无需归一化）
-  maxDistance: 20,                               //   最大距离（缺省 Infinity）
-  excludeNodeIds: [this.entity.id],             //   排除的节点 id（不参与命中）
-});  // → [{ nodeId, point, normal, distance }]（空数组 = 未命中）
+```ts tve
+import { Component, engine } from "tve";
+
+export default class PhysRunner extends Component {
+  onFixedUpdate() {
+    const e = this.entity;
+    // 施力/速度写入放固定步长（1/60s，与物理步进同频）
+    engine.physics.applyImpulse(e, 0, 5, 0);      // 冲量（世界空间，N·s；动力学体）
+    engine.physics.applyForce(e, 0, -9.8, 0);     // 持续力（N；每帧调用才持续生效）
+    engine.physics.setLinearVelocity(e, 0, 0, 5); // 线速度（m/s）
+    engine.physics.setAngularVelocity(e, 0, 3, 0);// 角速度（rad/s）
+    void engine.physics.getLinearVelocity(e);     // Vec3 | null
+    void engine.physics.bodyInfo(e);              // { mode, gravityScale, colliderCount } | null
+    engine.physics.setGravityScale(e, 0);         // 重力缩放（0 = 不受重力）
+    engine.physics.wakeUp(e);                     // 修改参数后唤醒睡眠体
+    engine.physics.setGravity(0, -9.81, 0);       // 世界重力（影响全部动力学体）
+  }
+}
 ```
 
 | 方法 | 典型场景 |
@@ -154,37 +219,61 @@ engine.physics.castRay({                        // 射线投射（世界空间�
 
 `castRay` 是世界级查询（不按实体寻址），对物理世界中所有碰撞体做射线检测，返回按距离升序排列的命中列表。三后端（Rapier / Jolt / Ammo.js）同一 API、同一返回结构。
 
-```ts
-const hits = engine.physics.castRay({
-  origin: { x: 0, y: 10, z: 0 },
-  direction: { x: 0, y: -1, z: 0 },
-  maxDistance: 20,
-  excludeNodeIds: [this.entity.id],  // 排除自身（如从角色眼睛发射时排除角色体）
-});
-if (hits.length > 0) {
-  const hit = hits[0];               // 最近命中
-  engine.log("命中节点", hit.nodeId, "距离", hit.distance);
-  // hit.point  — 命中点世界坐标 { x, y, z }
-  // hit.normal — 命中面法线（世界空间，归一化）
+```ts tve
+import { Component, engine, PhysicsRayHit } from "tve";
+
+export default class RayDemo extends Component {
+  fire() {
+    const hits = engine.physics.castRay({
+      origin: { x: 0, y: 10, z: 0 },            // 起点（世界空间）
+      direction: { x: 0, y: -1, z: 0 },         // 方向（无需归一化）
+      maxDistance: 20,                           // 最大距离（缺省 Infinity）
+      excludeNodeIds: [this.entity.id],         // 排除自身（如从角色眼睛发射时排除角色体）
+    }) as PhysicsRayHit[];                       // Worker 模式返回 Promise，主线程同步数组
+    if (hits.length > 0) {
+      const hit = hits[0];                       // 最近命中（列表按距离升序）
+      engine.log("命中节点", hit.nodeId, "距离", hit.distance);
+      // hit.point  — 命中点世界坐标 { x, y, z }
+      // hit.normal — 命中面法线（世界空间，归一化）
+    }
+  }
 }
 ```
 
-典型用法——鼠标点击拾取物理体：
+典型用法——鼠标点击拾取物理体（从相机发射射线）：
 
-```ts
-onUpdate() {
-  engine.input.onPointerDown((p) => {
-    // 从相机发射射线（需自行把屏幕坐标转为世界射线）
+```ts tve
+import { Component, engine, property, CameraNode, Entity } from "tve";
+
+export default class ClickPick extends Component {
+  @property({ type: CameraNode, label: "相机" })
+  cam: CameraNode | null = null;
+
+  private off?: () => void;
+
+  onEnable() {
+    // 事件订阅放 onEnable（onUpdate 内重复订阅会越积越多——常见错误）
+    this.off = engine.input.onPointerDown((p) => this.pick(p.x, p.y));
+  }
+
+  onDisable() { this.off?.(); }
+
+  pick(x: number, y: number) {
+    if (!this.cam) return;
+    const ray = this.cam.screenToRay(x, y);   // 屏幕像素 → 世界射线
+    if (!ray) return;
     const hits = engine.physics.castRay({
-      origin: this.rayOrigin,
-      direction: this.rayDir,
+      origin: ray.origin,
+      direction: ray.direction,
       maxDistance: 100,
-    });
+    }) as { nodeId: string }[];
     if (hits.length > 0) {
-      const target = engine.scene.find(hits[0].nodeId);
+      const target = engine.scene.find(hits[0].nodeId); // find 名称未命中按节点 id 回退
       if (target) this.select(target);
     }
-  });
+  }
+
+  select(target: Entity) { void target; }
 }
 ```
 
@@ -194,14 +283,32 @@ onUpdate() {
 
 按实体寻址；画布与 Widget（图片/文本/按钮/布局容器）设置 + 按钮点击订阅。节点类字段与示例详见 [UI](ui.md)。
 
-```ts
-engine.ui.set(entity, { text: "New", color: 0x66ccff }); // 合并设置（子集；运行态生效，不落盘）
-engine.ui.get(entity);           // 当前设置快照（非 UI 节点返回 null）
-const off = engine.ui.onClick(entity, () => { /* 按钮被点击 */ }); // 仅 uiButtonNode 且 interactable
-engine.ui.offClick(entity, cb);  // 解除订阅（或调用 onClick 返回的解绑函数）
-engine.ui.rectOf(entity);        // 解析矩形（画布局部空间，锚点/布局解析后的实际矩形）
-engine.ui.metricsOf(entity);     // 所在画布屏幕度量（px ↔ UI 单位换算）
-engine.ui.screenToUi(entity, x, y); // 屏幕像素坐标 → 画布局部 UI 坐标
+```ts tve
+import { Component, engine, property, UITextNode, UIButtonNode } from "tve";
+
+export default class UiRunner extends Component {
+  @property({ type: UITextNode, label: "提示文本" })
+  tip: UITextNode | null = null;
+
+  @property({ type: UIButtonNode, label: "按钮" })
+  btn: UIButtonNode | null = null;
+
+  onStart() {
+    if (!this.tip) return;
+    engine.ui.set(this.tip, { text: "New", color: 0x66ccff }); // 合并设置（子集；运行态，不落盘）
+    void engine.ui.get(this.tip);              // 当前设置快照（非 UI 节点 null）
+    void engine.ui.rectOf(this.tip);           // 解析矩形（画布局部；布局子节点返回槽位矩形）
+    void engine.ui.metricsOf(this.tip);        // 所在画布屏幕度量（px ↔ UI 单位换算）
+    void engine.ui.screenToUi(this.tip, 100, 100); // 屏幕像素 → 画布局部 UI 坐标
+
+    // 点击订阅（仅 uiButtonNode 且 interactable；返回解绑函数）
+    if (this.btn) {
+      const off = engine.ui.onClick(this.btn, () => { /* 按钮被点击 */ });
+      void off;
+      // engine.ui.offClick(this.btn, handler); // 解除订阅
+    }
+  }
+}
 ```
 
 ## 逻辑：engine.logic
@@ -210,54 +317,95 @@ engine.ui.screenToUi(entity, x, y); // 屏幕像素坐标 → 画布局部 UI �
 
 状态机：过渡触发器（事件 / 定时 / 参数条件）在编辑器的 `.fsm` 图里定义，脚本负责喂事件、写参数、响应状态：
 
-```ts
-// 状态进入时播动画（经典 Idle/Walk/Attack 驱动）
-engine.logic.onFsmEnter(entity, "Attack", () => engine.animation.play(entity, "attack"));
-engine.logic.onFsmExit(entity, "", (s) => engine.animation.stop(entity)); // 空 match = 任意状态
+```ts tve
+import { Component, engine, property, FsmRunnerNode, Entity } from "tve";
 
-engine.logic.fire(entity, "hit");                 // 发射事件（事件过渡的触发器）
-engine.logic.setFsmParam(entity, "hp", 20);       // 写参数（条件过渡的黑板）
-engine.logic.getFsmParam(entity, "hp");
-engine.logic.fsmState(entity);                    // { id, name, time } | null
-engine.logic.forceFsmState(entity, "Walk");       // 强制切换（状态 id 或显示名）
+export default class FsmDriver extends Component {
+  @property({ type: FsmRunnerNode, label: "状态机" })
+  fsm: FsmRunnerNode | null = null;
+
+  onStart() {
+    const e = (this.fsm ?? this.entity) as Entity;
+    // 状态进入时播动画（经典 Idle/Walk/Attack 驱动）
+    engine.logic.onFsmEnter(e, "Attack", () => engine.animation.play(e, "attack"));
+    engine.logic.onFsmExit(e, "", () => engine.animation.stop(e)); // 空 match = 任意状态
+
+    engine.logic.fire(e, "hit");               // 发射事件（事件过渡的触发器）
+    engine.logic.setFsmParam(e, "hp", 20);     // 写参数（条件过渡的黑板）
+    void engine.logic.getFsmParam(e, "hp");
+    void engine.logic.fsmState(e);             // { id, name, time } | null
+    engine.logic.forceFsmState(e, "Walk");     // 强制切换（状态 id 或显示名）
+  }
+}
 ```
 
 行为树：条件叶子读黑板，动作叶子经 `onAction` 注册行为；返回三值状态（缺省成功）：
 
-```ts
-engine.logic.setBtParam(entity, "ready", 1);      // 写黑板（条件叶子的求值对象）
-engine.logic.btStatus(entity);                    // "success" | "failure" | "running" | null
+```ts tve
+import { Component, engine, property, BtRunnerNode } from "tve";
 
-engine.logic.onAction(entity, "walkTo", (leaf, session) => {
-  if (session.seq !== this.lastSeq) {             // 全新开始（首次/完成后再入/被中断）→ 复位
-    this.lastSeq = session.seq;
-    this.step = 0;
+export default class BtDriver extends Component {
+  @property({ type: BtRunnerNode, label: "行为树" })
+  bt: BtRunnerNode | null = null;
+
+  private lastSeq = -1;
+  private step = 0;
+
+  onStart() {
+    if (!this.bt) return;
+    engine.logic.setBtParam(this.bt, "ready", 1);    // 写黑板（条件叶子的求值对象）
+    void engine.logic.btStatus(this.bt);             // "success" | "failure" | "running" | null
+
+    engine.logic.onAction(this.bt, "walkTo", (leaf, session) => {
+      if (session.seq !== this.lastSeq) {            // 全新开始（首次/完成后再入/被中断）→ 复位
+        this.lastSeq = session.seq;
+        this.step = 0;
+      }
+      void leaf.id;
+      return ++this.step >= 10 ? "success" : "running"; // running = 续行（下一帧再调）
+    });
   }
-  return ++this.step >= 10 ? "success" : "running"; // running = 续行（下一帧再调）
-});
+}
 ```
 
 通用控制：`setRunning(entity, false)` 暂停 / `restart(entity)` 重启（状态回入口、黑板回默认）。订阅与 `onAction` 都返回解绑函数。
 
 **多个运行器：如何拿到实体**。场景里可以有任意多个状态机/行为树，`engine.logic` 全部按实体寻址，实体来源有四种：
 
-```ts
-// ① @property 节点引用（推荐）：检查器下拉按类型过滤，只列 fsmRunnerNode/btRunnerNode；
-//    同一脚本可声明多个字段分别绑定不同运行器，多个脚本也可引用同一个运行器
-@property({ type: FsmRunnerNode, label: "移动状态机" })
-move: FsmRunnerNode | null = null;
+```ts tve
+import { Component, property, engine, FsmRunnerNode, Transform } from "tve";
 
-// ② 按名字 / 标签查找
-const fsm = engine.scene.find("EnemyFSM");
-const agent = engine.scene.findByTag("enemy");
+export default class RunnerRefs extends Component {
+  // ① @property 节点引用（推荐）：检查器下拉按类型过滤，只列 fsmRunnerNode/btRunnerNode；
+  //    同一脚本可声明多个字段分别绑定不同运行器，多个脚本也可引用同一个运行器
+  @property({ type: FsmRunnerNode, label: "移动状态机" })
+  move: FsmRunnerNode | null = null;
 
-// ③ 脚本就挂在运行器节点自身：this.entity 即该运行器
-engine.logic.fire(this.entity, "hit");
+  // ② 按名字 / 标签查找
+  findRunners() {
+    const fsm = engine.scene.find("EnemyFSM");
+    const agent = engine.scene.findByTag("enemy");
+    void fsm; void agent;
 
-// ④ 枚举全部运行器（如全局监听所有敌人的状态）
-for (const e of engine.scene.findAll()) {
-  if (e instanceof FsmRunnerNode) {
-    engine.logic.onFsmEnter(e, "Die", () => this.refreshCount());
+    // ④ 枚举全部运行器（如全局监听所有敌人的状态）
+    for (const e of engine.scene.findAll()) {
+      if (e instanceof FsmRunnerNode) {
+        engine.logic.onFsmEnter(e, "Die", () => this.refreshCount());
+      }
+    }
+  }
+
+  // ③ 脚本就挂在运行器节点自身：this.entity 即该运行器
+  hitSelf() {
+    engine.logic.fire(this.entity, "hit");
+  }
+
+  refreshCount() { /* ... */ }
+
+  onStart() {
+    this.findRunners();
+    this.hitSelf();
+    void (this.move as Transform | null);
   }
 }
 ```
@@ -268,16 +416,26 @@ for (const e of engine.scene.findAll()) {
 
 与顶层导出 `tween` 是同一对象：创建即自动播放的补间动画（实体变换、UI 字段、数值/颜色插值、序列/并行组）。详见[补间动画](tween.md)。
 
-```ts
-tween.position(entity, { x: 5 }, 1).easing("quadOut");
+```ts tve
+import { Component, tween } from "tve";
+
+export default class Slide extends Component {
+  onStart() {
+    // 与顶层导出 tween 是同一对象
+    tween.position(this.entity, { x: 5 }, 1).easing("quadOut");
+  }
+}
 ```
 
 ## 日志：engine.log / warn / error
 
-```ts
+```ts tve
+import { engine } from "tve";
+
+const score = 10;
 engine.log("得分", score);   // 输出到编辑器控制台（预览）/ 浏览器控制台（发布产物）
 engine.warn("低血量");
-engine.error("非法状态", entity);
+engine.error("非法状态");
 ```
 
 - 预览运行时日志转发到编辑器控制台（`[预览]` 前缀）；发布产物转发到浏览器控制台（调试模式构建保留转发）；

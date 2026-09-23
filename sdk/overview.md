@@ -18,7 +18,7 @@ tve 脚本 SDK（模块说明符 `"tve"`）是编辑器脚本的唯一引擎入�
 4. 在节点检查器「添加组件 > 脚本」挂载，检查器中即可配置属性；
 5. 工具栏切到「预览」或按播放运行，脚本进入生命周期。
 
-```ts
+```ts tve
 import { Component, property, engine } from "tve";
 
 export default class Spin extends Component {
@@ -100,7 +100,7 @@ export default class Spin extends Component {
 
 项目设置 → 基础信息 → 「入口脚本」可选一个 `src/**.ts`：随预览/发布运行，挂载在场景根节点（适合全局管理器）。节点级行为请在检查器挂载脚本组件。
 
-```ts
+```ts tve
 // src/Game.ts —— 入口脚本示例：全局管理器 + 事件总线
 import { Component, Delegate } from "tve";
 
@@ -110,6 +110,7 @@ export default class Game extends Component {
 
   onUpdate() {
     // 全局调度逻辑……
+    void this.score;
   }
 }
 ```

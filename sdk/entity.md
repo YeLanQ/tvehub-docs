@@ -26,19 +26,28 @@
 
 ### 常见误用
 
-```ts
-// ✗ 错误：LightNode 是节点句柄，不是组件——编译期报 TS2769
-const light = entity.getComponent(LightNode);
+```ts tve
+import { Component, engine, Light, LightNode, property } from "tve";
 
-// ✓ 正确：Light 是组件门面
-const light = entity.getComponent(Light);      // 或 entity.getComponent("light")
+export default class LightUsage extends Component {
+  @property({ type: LightNode, label: "灯光节点" })
+  lamp: LightNode | null = null;
 
-// ✓ 引用灯光节点本身（变换/层级）用节点句柄类
-@property({ type: LightNode }) target: LightNode | null = null;
+  onStart() {
+    // ✗ 错误：LightNode 是节点句柄，不是组件——编译期报 TS2769
+    // this.entity.getComponent(LightNode);
 
-// ✓ 运行时查找节点后用 instanceof 收窄（find 不支持泛型）
-const node = engine.scene.find("Sun");
-if (node instanceof LightNode) { /* node 收窄为 LightNode */ }
+    // ✓ 正确：Light 是组件门面
+    const light = this.entity.getComponent(Light); // 或 getComponent("light")
+    void light;
+
+    // ✓ 运行时查找节点后用 instanceof 收窄（find 不支持泛型）
+    const node = engine.scene.find("Sun");
+    if (node instanceof LightNode) {
+      void node; // 收窄为 LightNode
+    }
+  }
+}
 ```
 
 **判定法**：`getComponent` 的参数永远是**组件门面类**或**脚本组件类**（`extends Component`），绝不传节点句柄类（`extends Entity`）。
@@ -51,46 +60,78 @@ if (node instanceof LightNode) { /* node 收窄为 LightNode */ }
 
 ### Entity 基类
 
-```ts
-// 属性
-entity.id: string;              // 节点 id（与场景文件一致）
-entity.kind: EntityKind;        // 节点类型键：node/meshNode/pointLightNode…
-entity.name: string;            // 名称（可写，即时生效）
-entity.tag: string;             // 标签（检查器 Node 卡设置，空串 = 无标签）
-entity.layer: number;           // 渲染层级索引 0~31（可写，应用到对象子树渲染层）
-entity.visible: boolean;        // 可见性（可写；含子级继承）
-entity.position: Vec3;          // 本地位置（读取返回快照副本；写入接受部分字段）
-entity.rotation: Vec3;          // 本地旋转（度制欧拉角；同上）
-entity.scale: Vec3;             // 本地缩放（同上）
-entity.worldPosition: Vec3;     // 世界位置（只读快照）
-entity.parent: Entity | null;   // 父实体（根节点 null）
-entity.children: Entity[];      // 子实体列表（快照）
+| 属性 | 说明 |
+| --- | --- |
+| `id` / `kind` / `tag` | 节点 id（与场景文件一致）/ 类型键（`node`/`meshNode`/`pointLightNode`…）/ 标签（空串 = 无标签） |
+| `name` / `layer` / `visible` | 名称（可写即时生效）/ 渲染层 0~31（可写，应用到子树）/ 可见性（可写，子级继承） |
+| `position` / `rotation` / `scale` | 本地变换（读取快照副本；写入接受部分字段；旋转为度制欧拉角 XYZ） |
+| `worldPosition` | 世界位置（只读快照） |
+| `parent` / `children` | 父实体（根 null）/ 子实体列表（快照） |
 
-// 方法
-entity.translate(x, y, z);      // 沿本地轴平移：position += (x,y,z)
-entity.rotate(xDeg, yDeg, zDeg);// 本地旋转叠加（度）：rotation += (x,y,z)
-entity.lookAt(target: Vec3);    // 朝向世界坐标目标（前向 = -Z，与灯光/相机一致）
-entity.find(nameOrPath: string);// 子树内查找："父/子/孙" 名称路径或单名称深度优先；未找到 null
+| 方法 | 语义 |
+| --- | --- |
+| `translate(x, y, z)` | 沿本地轴平移：`position += (x,y,z)` |
+| `rotate(xDeg, yDeg, zDeg)` | 本地旋转叠加（度）：`rotation += (x,y,z)` |
+| `lookAt(target: Vec3)` | 朝向世界坐标目标（前向 = -Z，与灯光/相机朝向约定一致） |
+| `find(nameOrPath)` | 子树内查找：`"父/子/孙"` 路径或单名称深度优先；未找到 null |
+
+综合用法（每帧驱动）：
+
+```ts tve
+import { Component, engine, math, MeshNode, property } from "tve";
+
+export default class Chase extends Component {
+  @property({ type: MeshNode, label: "追踪目标" })
+  target: MeshNode | null = null;
+
+  @property({ label: "速度（米/秒）", min: 0 })
+  speed = 3;
+
+  onUpdate(delta: number) {
+    const target = this.target ?? engine.scene.find("Player");
+    if (!target) return;
+    // 转向 + 移动分离：先朝向（投影到水平面），再恒速逼近
+    const dir = math.normalize(math.projectXZ(math.sub(target.worldPosition, this.entity.worldPosition)));
+    this.entity.lookAt(math.add(this.entity.worldPosition, dir));
+    this.entity.position = math.moveTowards(
+      this.entity.position, target.worldPosition, this.speed * delta);
+  }
+}
 ```
 
 ### 快照语义（重要）
 
 > `position` 等读取返回**快照副本**，修改副本不会生效；写回才生效：`entity.position = { x: 1, y: 0, z: 0 }`。
 
-```ts
-const p = entity.position;
-p.x += 1;                 // ✗ 只改了副本
-entity.position = p;      // ✓ 写回生效（p 是普通对象，可直接回写）
+```ts tve
+import { Component, math } from "tve";
 
-// 等价的单行写法（配合 math）：
-entity.position = math.add(entity.position, math.v3(1, 0, 0));
+export default class SnapshotDemo extends Component {
+  onStart() {
+    const e = this.entity;
+    // 快照副本：改副本不生效，写回才生效
+    const p = e.position;
+    p.x += 1;                 // ✗ 只改了副本
+    e.position = p;           // ✓ 写回生效（p 是普通对象，可直接回写）
+
+    // 等价的单行写法（配合 math）：
+    e.position = math.add(e.position, math.v3(1, 0, 0));
+  }
+}
 ```
 
 **写入接受部分字段**：`entity.position = { x: 5 }` 只改 x，y/z 不动。这让「只转 Y 轴」「只抬升」这类需求免于先读后写：
 
-```ts
-entity.rotation = { y: 90 };          // 只改 Y，X/Z 保持
-entity.position = { y: entity.position.y + 1 }; // 抬升 1 米
+```ts tve
+import { Component } from "tve";
+
+export default class PartialWrite extends Component {
+  onUpdate() {
+    const e = this.entity;
+    e.rotation = { y: 90 };                      // 只改 Y，X/Z 保持
+    e.position = { y: e.position.y + 0.01 };     // 抬升（每帧 1cm 演示）
+  }
+}
 ```
 
 `children` 与 `worldPosition` 同为快照：`children` 返回当时子列表的数组副本，遍历中增删子节点不影响快照；`worldPosition` 是只读的，需要移动节点请写本地 `position`（或改父级）。
@@ -115,17 +156,7 @@ entity.position = { y: entity.position.y + 1 }; // 抬升 1 米
 | `lookAt(target)` | 朝向世界坐标目标（**前向 = -Z**，模型的"脸"应朝 -Z 建模；与灯光/相机同约定） |
 | `find(nameOrPath)` | 子树内查找：`"Hand"` 深度优先找单名；`"Arm/Hand/Finger"` 按名称路径逐级找；未找到返回 `null` |
 
-```ts
-// 常见组合：追踪目标（转向 + 移动分离）
-onUpdate(delta: number) {
-  const target = engine.scene.find("Player");
-  if (!target) return;
-  const dir = math.normalize(math.projectXZ(math.sub(target.worldPosition, this.entity.worldPosition)));
-  this.entity.lookAt(math.add(this.entity.worldPosition, dir));   // 朝向（可配 moveTowardsAngle 平滑）
-  this.entity.position = math.moveTowards(
-    this.entity.position, target.worldPosition, this.speed * delta);
-}
-```
+追踪目标的完整组合（转向 + 移动分离）见上方 `Chase` 示例；`rotate(0, 90 * delta, 0)` 是标准的自转写法。
 
 ### 节点类型类（Entity 子类）
 
@@ -145,10 +176,23 @@ onUpdate(delta: number) {
 
 小写别名 `transform` / `meshNode` / `lightNode` / `cameraNode` / `skyboxNode` / `fogNode` / `particleSystemNode` / `fsmRunnerNode` / `btRunnerNode` / `uiCanvasNode` / `uiImageNode` / `uiTextNode` / `uiButtonNode` / `uiLayoutNode` 同样导出。
 
-```ts
-// instanceof 判别（引用声明为宽类型时收窄）
-if (this.target instanceof ParticleSystemNode) {
-  this.fx = this.target;          // 自动收窄，可调用粒子专有方法
+```ts tve
+import { Component, property, Entity, ParticleSystemNode, Transform } from "tve";
+
+export default class Narrowing extends Component {
+  // 引用声明为宽类型（Transform 收任意节点）时用 instanceof 收窄
+  @property({ type: Transform, label: "目标节点" })
+  target: Transform | null = null;
+
+  fx: ParticleSystemNode | null = null;
+
+  onStart() {
+    if (this.target instanceof ParticleSystemNode) {
+      this.fx = this.target;          // 自动收窄，可调用粒子专有方法
+      this.fx.play();
+    }
+    void (this.target as Entity);
+  }
 }
 ```
 
@@ -156,8 +200,8 @@ if (this.target instanceof ParticleSystemNode) {
 
 粒子系统实体在通用节点能力之外提供运行时控制与发射参数读写（运行态生效，不回写场景文件）：
 
-```ts
-import { Component, property, ParticleSystemNode } from "tve";
+```ts tve
+import { Component, engine, property, ParticleSystemNode } from "tve";
 
 export default class Explode extends Component {
   @property({ type: ParticleSystemNode, label: "爆炸特效" })
@@ -215,13 +259,16 @@ export default class Explode extends Component {
 
 ## 场景查询：engine.scene
 
-```ts
+```ts tve
+import { engine } from "tve";
+
 engine.scene.root;                 // 根实体（空场景 null）
 engine.scene.find("Boss/Hand");    // 从根开始按名称/路径查找（语义同 Entity.find）
 engine.scene.find("node_ab12cd");  // 名称未命中时按节点 id 回退（castRay 命中只带 id）
-engine.scene.findAll();            // 全部实体（快照数组，文档序）
+engine.scene.findAll();            // => []（无宿主；有场景时为全部实体快照，文档序）
 engine.scene.findByTag("enemy");   // 按标签查第一个命中；无命中 null
-engine.scene.findAllByTag("enemy");// 按标签全量（文档序）
+engine.scene.findAllByTag("enemy");// => []（按标签全量，文档序）
+engine.scene.find("Boss/Hand");    // => null（当前无宿主场景；doctest 实测空转语义）
 ```
 
 - 「文档序」= 场景树的深度优先顺序（与层级面板从上到下一致）；
@@ -251,17 +298,29 @@ engine.scene.findAllByTag("enemy");// 按标签全量（文档序）
 
 ### getComponent
 
-```ts
-// 内置组件：传门面类或类型键字符串
-const rb = entity.getComponent(RigidBody);      // 或 "rigidBody"
-const light = entity.getComponent("light");
-const anim = entity.getComponent("anim");       // "animation"/"anim" 为骨骼动画别名
-// 未挂载返回 null；多实例组件（如多个动画剪辑）取首个，句柄稳定
+```ts tve
+import { Component, Light, RigidBody } from "tve";
 
-// 脚本组件：传脚本类 / 源路径 / 类名字符串
-const hp = entity.getComponent(HPBar);
-const hp2 = entity.getComponent("src/hp.ts");
-const hp3 = entity.getComponent("HPBar");
+// 同文件定义演示（实际项目中 HPBar 在 src/hp.ts，跨文件用 import type 引类型）
+class HPBar extends Component {
+  max = 100;
+}
+
+export default class QueryDemo extends Component {
+  onStart() {
+    // 内置组件：传门面类或类型键字符串
+    const rb = this.entity.getComponent(RigidBody);  // 或 "rigidBody"
+    const light = this.entity.getComponent("light");
+    const anim = this.entity.getComponent("anim");   // "animation"/"anim" 为骨骼动画别名
+    void rb; void light; void anim;                  // 未挂载返回 null；多实例取首个，句柄稳定
+
+    // 脚本组件：传脚本类 / 源路径 / 类名字符串
+    const hp = this.entity.getComponent(HPBar);
+    const hp2 = this.entity.getComponent("src/hp.ts");
+    const hp3 = this.entity.getComponent("HPBar");
+    void hp; void hp2; void hp3;
+  }
+}
 ```
 
 token 对照：
@@ -277,26 +336,53 @@ token 对照：
 
 ### 全场景组件查找
 
-```ts
-engine.scene.findComponent(HPBar);    // 文档序第一个命中（未命中 null）
-engine.scene.findComponents("enemy"); // 文档序全量（未命中空数组）
-// token：脚本类 / 脚本源路径 / 脚本类名 / 内置组件门面类 / 类型键
+```ts tve
+import { Component, engine, AnimGraphDef } from "tve";
+
+class HPBar extends Component {
+  max = 100;
+}
+
+export default class FindComp extends Component {
+  onStart() {
+    void engine.scene.findComponent(HPBar);     // 文档序第一个命中（未命中 null）
+    void engine.scene.findComponents("enemy");  // 文档序全量（未命中空数组）
+    // token：脚本类 / 脚本源路径 / 脚本类名 / 内置组件门面类 / 类型键
+  }
+}
 ```
 
 ### 动态添加组件：addComponent
 
-```ts
-// 内置组件（多实例）：追加一个新组件，settings 缺省项回默认
-entity.addComponent("light", { kind: "point", intensity: 2, color: 0xffdd88 });
-entity.addComponent("audioSource", { source: "assets/audio/bgm.mp3", autoplay: true, loop: true });
-entity.addComponent("animationClip", { clip: "assets/anims/idle.anim", autoplay: true });
-entity.addComponent("animation", { graph: myGraphDef }); // 仅模型网格节点
+```ts tve
+import { Component, AnimGraphDef, engine } from "tve";
 
-// 脚本组件：传脚本类 / 源路径 / 类名；props 为属性配置
-entity.addComponent(HPBar, { max: 100 });
-entity.addComponent("src/hp.ts", { max: 100 });
+class HPBar extends Component {
+  max = 100;
+}
 
-// RigidBody / Collider：物理组件仅启动期按场景数据构建，运行时创建返回 null
+export default class AddDemo extends Component {
+  private graphDef: AnimGraphDef = {
+    states: [{ name: "Idle", clip: "idle" }],
+  };
+
+  onStart() {
+    // 内置组件（多实例）：追加一个新组件，settings 缺省项回默认
+    const light = this.entity.addComponent("light", { kind: "point", intensity: 2, color: 0xffdd88 });
+    void light;
+    this.entity.addComponent("audioSource", { source: "assets/audio/bgm.mp3", autoplay: true, loop: true });
+    this.entity.addComponent("animationClip", { clip: "assets/anims/idle.anim", autoplay: true });
+    this.entity.addComponent("animation", { graph: this.graphDef }); // 仅模型网格节点
+
+    // 脚本组件：传脚本类 / 源路径 / 类名；props 为属性配置
+    const hp = this.entity.addComponent(HPBar, { max: 100 });
+    void hp;
+    this.entity.addComponent("src/hp.ts", { max: 100 });
+
+    // RigidBody / Collider：物理组件仅启动期按场景数据构建，运行时创建返回 null
+    engine.log("物理组件运行时创建 →", this.entity.addComponent("rigidBody"));
+  }
+}
 ```
 
 各内置组件的完整创建参数见[内置组件门面 › addComponent 创建参数速查](components.md)。

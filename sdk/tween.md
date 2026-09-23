@@ -2,8 +2,8 @@
 
 补间动画系统：以声明式 API 在时长内平滑插值任意数值/向量/颜色，由引擎每帧自动驱动（在脚本 `onUpdate` **之前**推进），创建即开始播放。典型用途：实体位移/旋转/缩放动画、UI 弹出/淡入、相机过渡、数值滚动（血条/分数）、序列演出。
 
-```ts
-import { tween, Component } from "tve";
+```ts tve
+import { tween, engine, Component } from "tve";
 
 export default class Punch extends Component {
   onStart() {
@@ -41,12 +41,34 @@ export default class Punch extends Component {
 
 `to`/`from` 的 `props` 形如 `{ 键: 终值 }`，值为数字或数值字段对象（**允许部分字段，缺分量不动**）：
 
-```ts
-tween.to(this.entity, { position: { x: 5 }, scale: { y: 2 } }, 1.5);
-tween.to(this.entity, { rotation: { y: 360 } }, 2).loop(-1);   // 无限绕 Y 旋转
-tween.from(uiImage, { anchoredPosition: { x: 20 }, color: 0 }, 0.3); // 滑入
-tween.value(0, 100, 2).onUpdate((v) => (hpBar.width = v));      // 血条滚动
-tween.to(layout, { padding: { top: 8 } }, 0.4);                 // 布局内边距过渡
+```ts tve
+import { tween, Component, property, Entity, UIImageNode, UILayoutNode } from "tve";
+
+class HpBar {
+  width = 0;
+}
+
+export default class TweenDemo extends Component {
+  @property({ type: UIImageNode, label: "头像框" })
+  uiImage: UIImageNode | null = null;
+
+  @property({ type: UILayoutNode, label: "布局容器" })
+  layout: UILayoutNode | null = null;
+
+  private hpBar = new HpBar();
+
+  onStart() {
+    // 部分字段：缺分量不动
+    tween.to(this.entity, { position: { x: 5 }, scale: { y: 2 } }, 1.5);
+    tween.to(this.entity, { rotation: { y: 360 } }, 2).loop(-1);   // 无限绕 Y 旋转
+
+    // UI Widget 字段与任意同名字段对象同样可插值
+    if (this.uiImage) tween.from(this.uiImage, { anchoredPosition: { x: 20 }, color: 0 }, 0.3); // 滑入
+    tween.value(0, 100, 2).onUpdate((v) => (this.hpBar.width = v));  // 血条滚动
+    if (this.layout) tween.to(this.layout, { padding: { top: 8 } }, 0.4); // 布局内边距过渡
+    void (this.entity as Entity);
+  }
+}
 ```
 
 字段插值的支持形态：
@@ -61,8 +83,19 @@ tween.to(layout, { padding: { top: 8 } }, 0.4);                 // 布局内边�
 
 颜色补间把插值结果赋回字段：
 
-```ts
-tween.color(btn.color, 0xff5533, 0.4).onUpdate((c) => (btn.color = c));
+```ts tve
+import { tween, Component, property, UIButtonNode } from "tve";
+
+export default class BtnFlash extends Component {
+  @property({ type: UIButtonNode, label: "按钮" })
+  btn: UIButtonNode | null = null;
+
+  onStart() {
+    if (!this.btn) return;
+    // 颜色补间把插值结果赋回字段
+    tween.color(this.btn.color, 0xff5533, 0.4).onUpdate((c) => (this.btn!.color = c));
+  }
+}
 ```
 
 > 注意：对 `color` 这类 0xRRGGBB 字段请用 `tween.color`（通道正确）。`tween.to` 对颜色字段做的是数值直插，跨通道会产生灰阶失真（例如 0xff0000 → 0x0000ff 中间会路过灰色）。
@@ -86,19 +119,35 @@ tween.color(btn.color, 0xff5533, 0.4).onUpdate((c) => (btn.color = c));
 | `playing` / `paused` / `completed` | 状态只读 |
 | `duration` / `elapsed` / `progress` / `loopsDone` | 配置时长 / 活跃播放累计（不含 delay）/ 当前循环进度 0..1 / 已完成循环数 |
 
-```ts
-// 弹跳入场：delay 半秒 → 从高处 yoyo 弹两次落定
-tween.from(cube, { position: { y: 6 } }, 0.6)
-  .delay(0.5)
-  .easing("quadInOut")
-  .yoyo()
-  .loop(2);
+```ts tve
+import { tween, engine, Component, property, MeshNode } from "tve";
 
-// 串接演出：飞入 → 停顿 → 缩放消失
-tween.position(enemy, { x: 0 }, 0.5)
-  .then(tween.delay(0.3))
-  .then(tween.scale(enemy, { x: 0, y: 0, z: 0 }, 0.25).easing("backIn"))
-  .onComplete(() => engine.log("演出结束"));   // 挂在链尾 = 整条链的完成回调
+export default class StagedShow extends Component {
+  @property({ type: MeshNode, label: "方块" })
+  cube: MeshNode | null = null;
+
+  @property({ type: MeshNode, label: "敌人" })
+  enemy: MeshNode | null = null;
+
+  onStart() {
+    // 弹跳入场：delay 半秒 → 从高处 yoyo 弹两次落定
+    if (this.cube) {
+      tween.from(this.cube, { position: { y: 6 } }, 0.6)
+        .delay(0.5)
+        .easing("quadInOut")
+        .yoyo()
+        .loop(2);
+    }
+
+    // 串接演出：飞入 → 停顿 → 缩放消失
+    if (this.enemy) {
+      tween.position(this.enemy, { x: 0 }, 0.5)
+        .then(tween.delay(0.3))
+        .then(tween.scale(this.enemy, { x: 0, y: 0, z: 0 }, 0.25).easing("backIn"))
+        .onComplete(() => engine.log("演出结束"));   // 挂在链尾 = 整条链的完成回调
+    }
+  }
+}
 ```
 
 `then` 语义要点：
@@ -113,16 +162,29 @@ tween.position(enemy, { x: 0 }, 0.5)
 
 组把多个 tween 变成一个整体：`sequence` 依次播放、`parallel` 同时播放；组级 `delay`/`loop`/`onStart`/`onComplete` 作用于整体，可**嵌套**（序列里放并行组等）。子 tween 传入组后由组接管（工厂的自动开始失效，独立播放状态被重置）——不要同时手动驱动组内成员。`yoyo` 对组无效；子 tween 可各自 `yoyo`。
 
-```ts
-const rise = tween.position(door, { y: 4 }, 1).easing("quadOut");
-const spin = tween.rotation(orb, { y: 360 }, 1);
-const flash = tween.color(mat.color, 0xffffff, 0.2).yoyo().loop(2);
+```ts tve
+import { tween, engine, Component, property, MeshNode } from "tve";
 
-tween.sequence([
-  tween.parallel([rise, flash]), // 上升 + 闪光同时
-  tween.delay(0.2),
-  spin,                          // 随后旋转
-]).onComplete(() => engine.log("阶段完成"));
+export default class DoorShow extends Component {
+  @property({ type: MeshNode, label: "门" })
+  door: MeshNode | null = null;
+
+  @property({ type: MeshNode, label: "宝珠" })
+  orb: MeshNode | null = null;
+
+  onStart() {
+    if (!this.door || !this.orb) return;
+    const rise = tween.position(this.door, { y: 4 }, 1).easing("quadOut");
+    const spin = tween.rotation(this.orb, { y: 360 }, 1);
+    const flash = tween.color(0x3366ff, 0xffffff, 0.2).yoyo().loop(2);
+
+    tween.sequence([
+      tween.parallel([rise, flash]), // 上升 + 闪光同时
+      tween.delay(0.2),
+      spin,                          // 随后旋转
+    ]).onComplete(() => engine.log("阶段完成"));
+  }
+}
 ```
 
 - 空数组组立即完成（`onComplete` 下一帧触发）；
@@ -133,12 +195,12 @@ tween.sequence([
 
 31 个标准缓动（Robert Penner 族）：`linear` 无后缀；其余按 In（加速起步）/ Out（减速收尾）/ InOut（两端缓缓）三形态。`easing` 表按名可取函数；`backIn/Out` 过冲回弹、`elasticIn/Out` 弹性振荡、`bounceIn/Out` 落地弹跳。
 
-```ts
-import { easing } from "tve";
+```ts tve
+import { easing, tween } from "tve";
 
 tween.value(0, 1, 1).easing("elasticOut");
 tween.value(0, 1, 1).easing((t) => t * t); // 自定义缓动
-engine.log(easing.quadOut(0.5));           // 0.75
+easing.quadOut(0.5); // => 0.75
 ```
 
 可用名称（共 31 个）：
@@ -168,7 +230,9 @@ engine.log(easing.quadOut(0.5));           // 0.75
 | `activeCount` | 活动 tween 数（含暂停中的） |
 | `timeScale` | 全局时间缩放（0 = 冻结全部；负数按 0 处理） |
 
-```ts
+```ts tve
+import { tween } from "tve";
+
 // 暂停菜单：冻结全部演出动画
 tween.timeScale = 0;
 // 恢复
