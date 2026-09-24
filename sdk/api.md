@@ -1660,6 +1660,7 @@ UI Widget 共有字段（叠加序 + 矩形尺寸 + 锚点；尺寸/位置单位
 | --- | --- | --- |
 | `sortOrder` | `number` | 画布内叠加序（大者在上；点击命中也按此取最上层） |
 | `size` | `{ x: number; y: number }` | 矩形尺寸（UI 单位；拉伸锚点轴由父矩形与边距推导） |
+| `opacity` | `number` | 不透明度（0..1，1 = 不透明；图片/文本/按钮渲染到材质透明度） |
 
 ### class UIImageNode extends Entity implements UIWidgetBase
 
@@ -1694,6 +1695,10 @@ export default class DamageFlash extends Component {
 #### `sortOrder: number`
 
 #### `size: { x: number; y: number }`
+
+#### `opacity: number`
+
+不透明度（0..1，1 = 不透明）
 
 #### `anchorMin: UIVec2`
 
@@ -1757,6 +1762,10 @@ export default class ScoreLabel extends Component {
 #### `sortOrder: number`
 
 #### `size: { x: number; y: number }`
+
+#### `opacity: number`
+
+不透明度（0..1，1 = 不透明）
 
 #### `anchorMin: UIVec2`
 
@@ -1830,6 +1839,10 @@ export default class MenuButtons extends Component {
 #### `sortOrder: number`
 
 #### `size: { x: number; y: number }`
+
+#### `opacity: number`
+
+不透明度（0..1，1 = 不透明；背景与标签整体透明）
 
 #### `anchorMin: UIVec2`
 
