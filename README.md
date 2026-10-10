@@ -9,6 +9,9 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 - **做动画**：[动画编辑器](editor/animation.md)（关键帧）+ [内置组件门面](sdk/components.md)（骨骼动画/动画图）；
 - **写脚本**：从 [SDK 总览](sdk/overview.md) 入门，[装饰器](sdk/decorators.md) 声明属性，[engine 入口](sdk/engine.md) 查全量 API，[逻辑运行器](sdk/logic.md) 做状态机/行为树；
 - **自定义效果**：[着色器与自定义效果](editor/shaders.md)；
+- **做地形**：[地形编辑](editor/terrain.md)（程序化 + DEM + 雕塑绘制）；
+- **画示意/分镜**：[白板](editor/whiteboard.md)；
+- **让 AI 代劳**：[AI 助手](editor/assistant.md)；
 - **做行为逻辑**：[场景图](editor/graph.md)（可视化节点编辑运行时行为）；
 - **发布**：[预览与构建](editor/preview-build.md)。
 
@@ -22,17 +25,20 @@ tve（three-visual-editor）内置 3D 场景编辑器与脚本 SDK 的用户文�
 
 | 文档 | 内容 |
 | --- | --- |
-| [编辑器总览](editor/overview.md) | 双窗口架构、停靠布局、工具栏、视图模式、快捷键、控制台、撤销 |
-| [项目管理](editor/projects.md) | 首页、新建/打开项目、目录结构、项目设置四页、创意工坊、开发者服务 |
+| [编辑器总览](editor/overview.md) | 多窗口架构、停靠布局、工具栏、视图模式、快捷键、控制台、撤销 |
+| [项目管理](editor/projects.md) | 首页七分区：项目、模板、创意工坊、白板、共享、偏好设置、开发者服务 |
+| [AI 助手](editor/assistant.md) | 对话式创作员工：工作区、会话、@文件、能力边界、智能体卡片与供应商 |
 | [场景编辑](editor/scene.md) | 层级面板、节点类型、视口、粒子系统、阴影、层与标签、场景文件格式 |
+| [地形编辑](editor/terrain.md) | 程序化地形、DEM 数据导入、地形材质与 Splatmap、雕刻与权重绘制 |
 | [场景图](editor/graph.md) | 场景图窗口、节点类型、连线、变量、自定义节点、预览执行、.graph 格式 |
+| [白板](editor/whiteboard.md) | 白板窗口：工具、图层、富文本、文件管理、放映、局域网共享发布 |
 | [UI 系统](editor/ui.md) | UI 画布与 Widget、锚点布局、文本/图片/按钮/布局容器、缩放适配、布局配方 |
 | [检查器与组件](editor/inspector.md) | 全部组件卡片字段、添加组件、物理、动画卡、脚本组件属性 |
 | [资产系统](editor/assets.md) | 资产面板、导入、资产类型、材质参数全集、预制体 |
 | [着色器与自定义效果](editor/shaders.md) | .shader 效果着色器：Base 分支、Hook 钩子、Properties 参数、示例拆解、后端差异 |
 | [动画编辑器](editor/animation.md) | 关键帧动画剪辑、曲线编辑、录制、.anim 格式、动画图、骨骼调试 |
 | [脚本工作台](editor/scripting.md) | 脚本编写、编译、绑定节点、智能提示、调试 |
-| [预览与构建](editor/preview-build.md) | 网页预览、设备仿真、构建导出渠道与配置、发布模式、CDN |
+| [预览与构建](editor/preview-build.md) | 网页预览、设备仿真、Web 与微信小游戏构建、发布模式、CDN、局域网共享 |
 
 ## SDK 文档（脚本 API）
 
