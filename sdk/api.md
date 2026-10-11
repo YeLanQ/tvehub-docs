@@ -4263,6 +4263,49 @@ export default class UiRuntime extends Component {
 | `metricsOf(entity: Entity)` | `UIScreenMetrics \| null` | 实体所在 UI 画布（沿父链向上）的屏幕度量。 屏幕像素 → UI 单位：ui = (px - width/2) / pxPerUnitX（y 轴取反）； 非 UI 节点返回 null。 |
 | `screenToUi(entity: Entity, x: number, y: number)` | `UIPoint \| null` | 屏幕像素坐标 → 画布局部 UI 坐标（x/y 与 engine.input.pointer 同一空间； 结果原点 = 画布中心，y 向上，可直接与 rectOf 结果做包含/距离判定）。 entity 用于定位所在画布；非 UI 节点返回 null。 |
 
+### interface PlayableAdApi
+
+试玩广告宿主契约（playable 渠道产物可用；其他产物/预览全部安全空转）。
+用法：在结束卡（EndCard）的下载按钮点击处理里调 {@link PlayableAdApi.cta}，
+运行时自动映射到所在广告平台的宿主函数（mraid.open / FbPlayableAd /
+ExitApi.exit），商店跳转由广告宿主接管。
+
+**示例**（doctest：随文档测试套件逐块验证）
+
+```ts tve
+import { engine } from "tve";
+
+// 试玩广告宿主契约（playable 渠道产物激活；其他产物/预览安全空转）
+engine.playableAd.host; // => "web"（非广告环境：编辑器预览 / 本机自测导出）
+engine.playableAd.isViewable(); // => true
+
+// 结束卡（EndCard）「下载」按钮的点击处理里调用：
+// 运行时自动映射所在平台宿主（mraid.open / FbPlayableAd / ExitApi.exit），
+// 商店跳转由广告宿主接管；无宿主环境空转并在控制台提示，不抛错
+engine.playableAd.cta();
+
+// 订阅广告位可见性变化（mraid 广告位滚出屏幕等；返回解绑函数）
+const unbind = engine.playableAd.onViewableChange((viewable) => {
+  if (!viewable) engine.tween.pauseAll();
+  else engine.tween.resumeAll();
+});
+unbind();
+
+// 生命周期打点上报（转发平台宿主通道 + 控制台留痕）：
+// gameStart 由运行时在宿主落定后自动上报一次；结束/重玩按时机手动调，
+// 自定义事件名与附加数据也接受（无宿主环境仅在控制台留痕）
+engine.playableAd.report("gameOver", { score: 100 });
+engine.playableAd.report("level_complete", { level: 3 });
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `host` | `string` | 探测到的宿主平台："mraid" / "meta" / "google"；"web" = 非广告环境 |
+| `cta()` | `void` | 结束卡「下载/安装」按钮点击：映射到广告宿主的安装跳转；无宿主（web 自测环境）空转并在控制台提示。 |
+| `isViewable()` | `boolean` | 广告位当前是否可见（mraid 跟随 viewableChange；其余平台恒 true） |
+| `onViewableChange(cb: (viewable: boolean) => void)` | `() => void` | 订阅广告位可见性变化（mraid 广告位滚出屏幕等；返回解绑函数）。 ```ts import { Component, engine } from "tve"; export default class EndCard extends Component { private unbind: (() => void) \| null = null; onStart() { // 广告位被移出屏幕时暂停结束卡上的补间动画 this.unbind = engine.playableAd.onViewableChange((viewable) => { if (!viewable) engine.tween.pauseAll(); else engine.tween.resumeAll(); }); } onDownloadClick() { engine.playableAd.cta();   // 自动映射 mraid.open / FbPlayableAd / ExitApi } onDestroy() { this.unbind?.(); } } ``` |
+| `report(event: string, data?: Record<string, unknown>)` | `void` | 生命周期事件打点上报：转发到所在平台宿主的上报通道，并在控制台留痕。 gameStart 在宿主落定后由运行时自动上报一次（无需手动调）；脚本在结束卡 出现时上报 gameOver、重玩时上报 gameRestart；也接受自定义事件名 + 附加 数据（postMessage 族平台随适配器逐家映射协议）。 |
+
 ### interface EngineApi
 
 引擎入口（时间 / 输入 / 场景 / 动画 / 音频 / 粒子 / 物理 / UI / 逻辑 / 补间 / 日志）
@@ -4326,6 +4369,7 @@ engine.time.frame;          // => 0
 | `physics` | `PhysicsApi` |  |
 | `ui` | `UIApi` |  |
 | `logic` | `LogicApi` | 逻辑运行器（状态机/行为树）控制，详见 {@link LogicApi} |
+| `playableAd` | `PlayableAdApi` | 试玩广告宿主契约（playable 渠道产物可用），详见 {@link PlayableAdApi} |
 | `tween` | `TweenApi` | 补间动画（与顶层导出 tween 同一对象，详见 {@link TweenApi}） |
 | `log(...args: unknown[])` | `void` | 输出到编辑器控制台（预览）/ 浏览器控制台（发布产物） |
 | `warn(...args: unknown[])` | `void` |  |
@@ -4356,7 +4400,7 @@ engine.ui;        // UIApi
 engine.logic;     // LogicApi
 engine.tween;     // TweenApi（与顶层 tween 同一对象）
 
-VERSION; // => "1.3.0"
+VERSION; // => "1.4.0"
 
 // 无宿主安全空转（doctest 实测）
 engine.scene.root; // => null
@@ -4433,5 +4477,5 @@ SDK 版本（与编辑器/播放器同版发布）
 import { VERSION } from "tve";
 
 // SDK 版本（与编辑器/播放器同版发布）
-VERSION; // => "1.3.0"
+VERSION; // => "1.4.0"
 ```
